@@ -1,0 +1,65 @@
+Q1. You write a script with set -e at the top. The script runs three commands in sequence: mkdir /tmp/test, cp nonexistent.txt /tmp/test/, and echo "Done". What happens when you run this script, and why?
+
+-e flag stand for error. It exit the execution of script if any command inside the script exit with a fail exit code. first command will create a directory inside /tmp. cp command copy nonexist.txt to that folder and then echo will print Done.Assuming that file does not exist, cp will exit with a non zero exit code and bash will stop executing the script. If you havent used set -e on top or its placed after commands echo will still print Done even though the file wasnt copied. 
+
+Q2. What's the difference between set -e and checking $? manually after each command? When might you prefer one approach over the other?
+
+set -e automates error handling by emmediately exiting the script on failure,while $? manually give you precise control over how to handle specific errors without breaking the execution.When you want to run the next task (command,function,loop...) based on the exit code of previous command $? is the ideal choice.set -e is highly effective in linear,predictable scripts where any single faliure means the entire process should halt immediately.Its ideal for CI/CD. 
+
+Q3. You have set -u enabled in your script and you write echo $UNDEFINED_VAR. What happens? Now, what if you intentionally want to use a variable that might not be set — how would you handle that without disabling set -u?
+
+Bash will trow an error unbound variable at line number.U exits if you try to use an unassigned variable.you can use bash parameter expansion to provide default value to the variable by UNDEFINED_VAR="${var:-default_value}", or use fallbacks such as check variable is set before using it ([ -v UNDEFINED_VAR ]),provide an empty string ( UNDEFINED_VAR="var:-}"  ).
+
+Q4. A script has this line: grep "error" /var/log/syslog | wc -l. If grep finds no matches, it exits with code 1. With set -e alone, the script continues. But if you add set -o pipefail, what changes and why?
+
+with -e alone bash only checks the exit code of the last command in pipe.So even though grep failed script will continue its execution.But when pipefail is added bash will check all the exit codes in the pipeline and if one of them failed bash will terminate further execution.
+
+Q5. Explain what this trap line does and when the function runs:
+
+bash
+
+
+trap cleanup EXIT
+What happens if the script exits normally? What happens if it crashes with an error? What happens if someone presses Ctrl+C?
+
+Usual trap command looks like trap 'commands to execute' signal.trap command allows you to catch signals,errors or script exits and exucute a specific piece of code or function before the script terminates.In this line trap will execute cleanup function on exit. If the script exit for any reason at all trap will run the function.It doesnt matter script exit with success or failed trap will execute cleanup function. Which means if the script crashes with an error or someone pressed Ctrl+c trap will still run.However if you have defined EXIT and SIGINT trap expicitly the EXIT trap will only trigger if your SIGINT trap explicitly calls exit inside its commands.(trap 'exit 130' SIGINT) 
+
+Q6. You see this pattern in a script:
+
+bash
+
+
+rm -f /tmp/tempfile.$$
+What does $$ mean here, and why is it used instead of a hardcoded filename like /tmp/tempfile.txt?
+
+in bash $$ is a special shell variable which reprecent the PID of the currennt running script or shell. Its not hardcoded to avoid data collision. If two or more users or instances ran the script at the same time with harcoded file path they will overwrite eachothers temporary data.In this way they have differnt file names with their PIDs.(two processes cant have the same PID).But $$ is no longer recommended for /tmp because predictability of PIDs.PIDs are assigned sequentially by the OS.An attecker can guess what the next PID be and do a symlink attack.
+
+Q7. Compare these two error-handling patterns — what's the practical difference?
+
+bash
+
+
+# Pattern A
+mkdir /some/path 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Failed"; exit 1
+fi
+# Pattern B
+mkdir /some/path || { echo "Failed"; exit 1; }
+
+There are multiple differences between code brevity,readability,error suppression and compatibility with set -e.pattern A has more commands to achive the same goal that achieved by pattern B.Error messages are deleted the moment they were written in pattern A but pattern B error messages are visible and easy to debug.In pattern A set -e will terminate its execution the moment mkdir failed but pattern 2 will actually run faild echo statement before termination if mkdir fails.
+
+
+Q8. You redirect errors with command 2>/dev/null. What does the 2 refer to? If you wanted to capture both normal output and errors into the same log file, what redirect syntax would you use?
+
+in bash 2 reffers to standard error(stderr)
+to capture both outputs you can use > /var/log/capture.log or > /var/log/capture.log 2>&1. im using > redirection because im writing to a new file if you are writing to an existing file that contains data you should use >> which append to the file. > will truncate the destination file to 0 bytes or create new file if doesnt exist yet. 
+
+Q9. A colleague writes a script without set -e or any error checking. The script runs apt-get update, then apt-get install nginx, then systemctl start nginx. If apt-get update fails (e.g., no internet), what happens to the rest of the script? Why is this dangerous in production?
+
+script will throw errors for all three commands because its trying to update without internet and install a package without and start a service that does not exist in the system.It doesnt matter what command fails because no error handling bash will run all the instructions inside that script.This called fail fast rather than fail silent.This is dangerous in production because if a CD fails a test and no error handling is used that broken version will deployed into the production enviorenment.
+
+Q10. You're writing a script that creates a temp file, does some processing, and should delete the temp file even if the script fails midway. Write the logical structure (pseudocode or real bash) showing how you'd combine set -euo pipefail and trap to make this robust.
+
+answer is at /home/umesh-dulara/Desktop/devops-journey/phase1-linux/temp.sh
+

@@ -1,0 +1,49 @@
+Q1. You run find /tmp -size +1M and get results. You then run find /tmp -size 1M and get nothing. Why?
+
+because in size flag + means greater than, -less than and just 1M means exactly 1MB.You are getting nothing because there are no files in that directory exactly 1MB.
+
+Q2. You run find ~ -name "*.log" and it returns logs buried 10 directories deep. You only want logs sitting directly in ~. What went wrong?
+
+find command runs recursively in default. You have to mention -maxdepth 1 to get result only in home directory.
+
+Q3. You run find . -name "*.log" | xargs rm. A file named server log.txt exists. What happens and why?
+
+xargs alone will spilt the arguments in spaces.it will treat server log.txt as two seperate arguments as server and log.txt.if there are files named as that happend to exist in that directory or sub directories they will also get deleted. 
+
+Q4. Your colleague suggests replacing -exec chmod +x {} \; with -exec chmod +x {} +. What changes under the hood, and when would it matter?
+
+{} \; will fork the shell for every argument that passed to it then increse the x bit and exit.It will create and terminate processes as long as there are arguments.{} + will increase the x bit of all the argument passed to it all at once making only one child process.It matters when working will massive set of data that needs passed to the command.if you are to modify x bit of small number of {} \; will work fine but if you need to change 10000 files it will create 10000 sub processes under the hood and propably hit argument list limit(ARG_MAX).But {} + work smartly if all the files couldnt fit in to one array by hitting ARG_MAX it will break them into managebale multiple arrays and run the command.This will still create multiple child processes but its less than {} \;. 
+
+Q5. Find the bug:
+
+bash
+
+
+find ~/projects -type f -name "*.tmp" -delete -mtime +7
+The intent is to delete .tmp files older than 7 days. But it deletes all .tmp files. Why?
+
+the -delete flag shoul place at the end of the command.bash will run delete before it processes -mtime +7.
+
+Q6. You run find ~/devops-journey -name "*.sh" | xargs wc -l and it works. But when there are zero .sh files, the command hangs instead of finishing. Why?
+
+wc command runs even with 0 arguments.But it will wait for stdin which you have to enter manually.And in this case, xargs is designed to run the target command at least one even with no arguments. So the command wont exit untill you provide an input or terminate the process.
+
+Q7. You need to find all .log files under /var/log that are larger than 50MB and were last modified more than 30 days ago — then compress each one with gzip. Write the command. Then explain: what happens if a filename contains a space?
+
+find /var/log -type f -name "*.log" -size +50M -mtime +30 -exec sh -c 'for f; do gzip -c "$f" > "/backup/$(basename "$f").gz"; done' _ {} +
+you cant handle file names that contain spaces with xargs alone.You need to use -exec or find ... print0 | xargs -o ...
+
+Q8. Your script from Day 14 (log_rotate.sh) uses find "$LOG_DIR" -name "*.log" -mtime +7. If you piped that into xargs gzip instead of using a while read loop, what two problems could you hit?
+
+it will break on file names that contain spaces.
+I wont be able to rename the archives to prevent the name collision.
+But this question is not clear.You havent mention where i need to use the pipe and im actually storing the output of find command in a variable.
+
+Q9. You run find / -type f -name "config.yml" 2>/dev/null. Why is the 2>/dev/null important here, and what would flood your terminal without it? Connect this to what you learned on Day 13.
+
+it will redirect the stderr to /dev/null. find command will only search directories and files if the user that running the cammand have access.Othervise it will print an error.without redirection terminal will flood with permission denied messages.If you are to pipe this output to a command you must suppress the stderr because unless the next command will treat those too as stdin and try to run the command.
+
+Q10. Write a short script that finds all .sh files in ~/devops-journey that do NOT have execute permission, prints their names, and asks the user whether to fix them. Use concepts from Days 8, 9, and 15.
+
+answer is in /home/umesh-dulara/Desktop/devops-journey/phase1-linux/permission_check.sh
+

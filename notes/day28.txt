@@ -1,0 +1,57 @@
+Q1. You run two containers on the default bridge network and try to ping container2 by name from inside container1. It fails. Why?
+
+Because default bridge does not not support automatic DNS discovery.You need to use IP addresses to communicate between containers.
+
+Q2. You run docker run -d --network host nginx. Now you try docker run -d --network host apache. Apache fails to start. What went wrong, and why doesn't this happen on the default bridge network?
+
+When you use host as your network interface it bypass the dockers isolated network.Which means containers does not get their own IP addresses or seperate network namespace.Which mean containers use host machine network interface directly.When containers use host network interface they are using host ports.By default nginx and apache use the same ports (80,443).When you first start nginx those ports are occupied by nginx so apache will fail becuase the ports it require is already in use.This wont happen in default bridge network because every container has isolated network interface.That means they got their own ports so no port conflicting.
+
+Q3. You have a container running with --network none. You exec into it and try to curl http://google.com. It fails. But you also can't even ping localhost. Why does even localhost fail with the none driver?
+
+--network none will stop docker from creating a virtual network interface for the container.Its completey isolated from host and other containers.Normally ping localhost should work inside the container because even with none driver docker still gives a private loopback interface to the container.It could fail if the containers loopback interface (lo) is down or container is missing DNS or hostname mapping to the word 'localhost'.Becase when container is running ping command local host must resolve to 127.0.0.1 othervise command itself will fail. 
+
+Q4. You create a custom network and run two containers on it. From one container, you can reach the other by name. What Docker mechanism makes this name resolution work — and how is it different from how your host machine resolves DNS?
+
+This mechanism is called embedded DNS server.
+It almost work same as normal DNS resolve but with one step behind.When you use a custom network docker intercepts all network name request using embedded DNS server before reaching to the host DNS server.lets say container A request container B.The request query first go through the embedded DNS server if it finds a running container or network alias with that name it resolve the name to that containers IP address or alias to the IP address.If the name isnt in the embedded DNS server the request is passed to the host DNS server from that on it resolve like a normal web address reqest.Host DNS - cache - router - DNS nameservers.
+
+Q5. You run: docker run -d -p 8080:80 nginx. From another machine on your LAN, someone hits http://your-ip:8080 and gets the nginx page. Now you run: docker run -d -p 127.0.0.1:9090:80 nginx. The same person tries http://your-ip:9090 and gets nothing. Why?
+
+Because first time nginx uses physical network interface.The next time its using loacal loopback interface.This is completly virtual network interface just like dockers network interface.The localhost is only reachable from itself.Anything outside is reaching through your physical interface.They gets nothing because nothing is listning on your physical interface 9090 port now.nginx is listening from your local loopback interface's 9090 port.So its only reachable from your computer.
+
+Q6. You have a web container and a database container that need to communicate. You could put them both on the default bridge network and use IP addresses, or create a custom network and use container names. Which approach would you trust in production, and why?
+
+obviously a custom network.You cant hardcode ip addresses inside your containers because everytime a container restart ip address change.You can use a custom network by giving a aliase to the database container and web container.So if container crashed, restarted docker will still assign the IP address to the same aliase automatically.This makes it scalable.On default bridge every container inside the network can talk to each other.By making a dedicated network for the web application you can isolate your database from any other container except the web container.
+
+Q7. You stop and remove a container, then start a new one with the same image on the default bridge network. The new container gets a different IP address. Considering what you learned about volumes on Day 27 — what's the similarity in philosophy between container IPs and container filesystems?
+
+when you remove a container the ip address that assigned to it gets released.So the next time you run a container docker assign a ip address to the container from its available ip address pool.The philosophical similarity is both are ephermeral by default.But if you mount a volume to a container this similarity breaks.Because a mounted volume makes filesystem permanent but IP address is still ephermeral. 
+
+Q8. You run docker network inspect bridge and see two containers listed with IPs 172.17.0.2 and 172.17.0.3. You exec into the first container and ping 172.17.0.3 — it works. But your colleague says "we should never rely on this in production." Why are they right?
+
+Because IP addresses are dynamic.If you have multiple containers inside your bridge network they get differnt IP addresses.As i explained in the previous answer the security.Any container in the bridge network can access every other container.You dont want some container poking around your database container.And you cant hardcode ip address to your program because they are dynamic.
+
+Q9. You're debugging a setup where container api can't reach container db. Write the sequence of docker commands you'd use to diagnose whether the problem is: (a) they're on different networks, (b) the target container isn't running, or (c) the service inside the target isn't listening on the expected port.
+
+(a) docker inspect api db | jq '.[] | {Container: .Name, Networks: .NetworkSettings.Networks | keys}'
+(b) docker ps | grep "db" || echo "container is not running"
+    docker ps -a | grep "db" || echo "container does not exist"
+(c) if container is not running and cant restart - docker logs db | grep "<service that run inside the container>" or just docker logs db
+    docker -exec -it db ss -tulnp 
+    if sercice running on a minimal image
+    docker -exec -it db netstat -tulnp
+
+Q10. You're designing a multi-container app with three services: a frontend (nginx), a backend API, and a database. The frontend needs to be accessible from the outside world. The backend needs to talk to both the frontend and the database. The database should NOT be reachable from the outside. Describe your network and port-mapping strategy — what gets -p, what doesn't, and why.
+
+docker network create frontend-net
+docker network create backend-net
+docker run -d -p 80:80 --network frontend-net --name frontend nginx
+docker run -d --network frontend-net --name backend backend-API
+docker network connect backend-net backend
+docker run -d --network backend-net --name db database
+
+the nginx container is mapped to host port 80 so its visble to the internet and its in a isolated network from database so database is never visible to the internet cause its not mapped to host ports.api is connected to the both networks so any traffic that needs to get to the database is strictly flow through the api.no ports mapped to the database or api so its immune to the traffic outside from its network.backend container act as a middle man between other containers.just as API works between frontend and backend.Only the data is send over a network.
+
+
+
+

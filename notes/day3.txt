@@ -1,0 +1,69 @@
+1. What is a process in Linux? How is it different from a program?
+
+a process in linux is an active instance of a running program that is managed by linux kernal. A program is a file/s that stored in the storage that contains the instructions. Think of like this if a car is the program the process is driving it.
+
+2. What is a PID? Run echo $$ in your terminal — what does it show?
+
+PID is the process ID that used to track the every process running in the system. 14927. echo $$ prints the PID for the currently active shell instance.
+
+3. What does ps aux show? What do the columns USER, PID, %CPU, %MEM, and COMMAND mean?
+
+it prints a snapshot of all the processes currunly running in the system.(includes idle and zombie processes too).
+USER - username of the account that owns and launched the process
+PID - ID of the process
+%CPU - percentage of CPU time the process has used over its entire lifetime
+%MEM - Percentage of physical RAM currently occupied by the process
+COMMAND - the full path and the command line that started process
+
+aux stands for
+a - list processes for *all users*
+u - display the output in user oriented format
+x - include processes not attached to a terminal(such as background system processes system services,deamons and tasks)
+
+4. What is the difference between a foreground process and a background process?
+
+A foreground process is an interactive program that occupies users terminal or shell session, blocking new commands untill it finshes, stops or moves. A background process runs independently in the background allowing you to keep using the shell.
+eg:-
+foreground process - sudo apt update, npm install
+background process - code
+
+
+Intermediate
+
+5. Run sleep 300 & in your terminal. Now run ps aux | grep sleep. What do you see? How do you kill it using its PID?
+
+umesh-d+   18129  0.0  0.0   8304  2076 pts/1    S+   00:20   0:00 sleep 300
+kill 18129
+
+you can also kill it with process name (pkill sleep)
+if the current command is too long you can use pgrep sleep. it only outputs the PID
+
+6. What is the difference between kill, kill -9, and kill -15? When would you use each?
+
+kill and kill -15 do exactly same thing. It send a termination siganl to the procecess. signal 15 is a gracefull termination request. when a process receives this signal it close the open files and network connections, save user data or current progress, cleanup temporary files and terminates it's child processes properly. kill -9 is force termination.This handled by kernal itself. kernal forcefully removes process from memory immediately. we use kill and kill -15 for default and safe process terminations whlie kill -9 is used when a process is frozen or unresponsive.
+
+7. What is a zombie process? What causes it and why is it a problem?
+
+a zombie process is a child process that already finished its job and parent process still hasnt read its exit code or parent failed or refused to kill that child process. A single zombie process isnt problem. But if multiple programs has parent processes that failed or refuses to kill the child processes there could be thousands of zombie processes.Linux has a finite number of PIDs. If the system has too many zombie process it can exhaust the available PIDs and block the system from launching new programs, services or connections.
+You cant kill a zombie process because its already dead. Even with the force kill. You have to kill its parent process.
+
+8. What is a daemon? Give 3 real examples of daemons running on your system. (Hint: run ps aux and look for processes not tied to a terminal)
+
+daemon is a specialized type of computer program that runs continuusly as a background process.
+
+docker daemon
+systemd
+sshd
+nginx
+
+
+Think about it
+
+9. Every process on Linux has a parent process. What is the very first process that starts when Linux boots, and what is special about it?
+
+user space process. It initialize the system components, mount file systems and start background services in parallel to ensure fast boot times. PID 1 adopt the orphan processes and the clean up their exit status when they finsh ensuring they wont become zombie processes.
+
+10. Run top in your terminal, let it run for 30 seconds, observe it. What is the difference between %CPU shown in top vs the overall system CPU usage shown at the top? What does the load average mean?
+
+%CPU lines at the top shows the total capacity of the system's CPU cores combined the time spent in a percentage and who, how much percentage using the using and how much cpu power is currently idle.
+The %CPU in the columns shows the percentage of a single CPU core that a specific process is using.   

@@ -1,0 +1,93 @@
+Q1. grep searches for patterns in text. But there's a key difference between these two:
+
+bash
+
+
+grep "error" /var/log/syslog
+cat /var/log/syslog | grep "error"
+Both produce the same output. So why does the first form exist? What's the advantage of giving grep the file directly instead of piping into it?
+
+the key differnce is effitiency.inthe first form there is only one process. But in second form first you run cat process and pipe the output to grep spawning another process(subshell).That needs more memory.There wont be much differnce if the file is small but if the file cat reading is big it would take more resources more than it needed in the first place.I think this answeres the whole question.
+
+
+Q2. What does the -v flag do in grep, and why is it just as useful as a normal match? Think of a real scenario where you'd want to find all lines that don't contain a pattern.
+
+-v flag in grep output the opposit of the match.Its important because filtering out the noise is often matter as much as finding a specific signal.You can use -v to filter all the commented lines in a file.
+
+
+Q3. You run this:
+
+bash
+
+
+grep -rn "TODO" ~/devops-journey/
+What do -r and -n do individually? If you ran this on a large project with thousands of files, why would this combination be more useful than just -r alone?
+
+-r - means recursive.It runs the grep command through the selected directory and it's all subdirectories.
+-n - line number.This prints the matching line and its line number in original file.
+Because when you combine -r with -n it will print the output with both file path and the exact line where the match was found.This is useful because when you are chencking a directory that contains thousands of file , even though you find the match you cant tell where the match was found by the line or file.-r alone cant perform this.
+
+
+Q4. In awk, $1 means the first column/field of text. But in a shell script, $1 means the first argument to the script. How does bash know which $1 you mean? What separates awk's world from bash's world in a command like:
+
+bash
+
+
+ps aux | awk '{print $1, $2, $11}'
+
+in bash awk is a program with its own instruction. So positional parameters and columns executes in comletely different scopes.The confusion happens because both of them use same simbol. But bash and awk evaluate them at different times.Bash evaluates its variables before it actually runs the commands inside the script.awk doesnt look at the terminal arguments, instead it looks at lines of data split by spaces, tabs or mentioned seperator.So basically they sits at different spots of the memory.awk is a child process of bash and child processes doesnt have access to the parents varibles
+In this command you used a pipe which spawns a subshell so bash world and awk world seperate by that border. 
+
+
+Q5. Look at this awk command:
+
+bash
+
+
+ps aux | awk '$3 > 1.0 {print $1, $2, $3, $11}'
+There's a condition ($3 > 1.0) before the {action}. How does this pattern work in awk — what gets printed and what gets skipped? Why is this more efficient than piping through grep first?
+
+basic awk command will look like this. awk 'condition {action}' input.awk is a dynamically typed language.If $3 contains a text like 14, awk looks at the characters and determines it looks like a number. Then awk automatically convert that string into a floating point numeric value in memory then checks the condition and look at the exit code. If exit code is true it execute the action. If its false it instantly drop that line from memory and grabs the next line. If no block is provided to condition it triggers the default action which prints $0.In this case awk checks if the third column which is cpu usage of individual process is greater than 1.0. 
+Because if you use grep OS has to allocate more memory for another process.
+
+
+Q6. In sed, what's the difference between these two:
+
+bash
+
+
+echo "foo bar foo" | sed 's/foo/baz/'
+echo "foo bar foo" | sed 's/foo/baz/g'
+What does the g flag control? What would the output of each be?
+
+in sed g stand for global.It modifies the substitution command to replace every single occurence of a pattern on a line. By default sed will only replace the first match.
+output 1
+baz bar foo
+
+output 2
+baz bar baz
+
+Q7. You want to delete all comment lines (lines starting with #) from a config file. You could use grep -v or sed. Write both approaches. Why might you pick one over the other?
+
+grep -v "#" file.conf > new_file.conf && mv new_file.conf file.conf
+sed '/#/d' file.conf
+
+You should use sed. Because simply grep was no design to do this.grep is search and filtering utility while sed is a stream editor which contains specific functions to edit the stream.why pick sed? i would say efficientcy. Because when you do this with grep you have to create a new file , write to that file and finally rename that file replacing original file that has a risk too.the risk is if you dont redirect the output of the grep to a empty file contains of that file will vanish before grep even runs.This happens because before any program can read or write data bash shell has to prepare the enviorenment.Bash exexutes the command from right to left when setting up input and output streams.so when use > bash will open destination file and instantly vipees it clean.So if you try to overwrite the original file as grep -v "#" file.conf > file.conf, the original file will be cleaned even before grep reads it.But since sed has its own functions to edit the stream of data it gets you can avoid this extra work and risks.
+
+Q8. By default, awk splits each line into fields using whitespace as the delimiter. But what if you're processing /etc/passwd where fields are separated by :? How would you tell awk to use a different delimiter? And why does this matter for DevOps — think about what kind of data uses non-whitespace delimiters.
+
+awk -F: '{print $2}' /etc/passwd
+you can use -F flag to choose the Field seperator(delimiter).
+In devops you have to work with different types of files that uses different field seperators such as (, : / ;) thats why this matter.
+
+Q9. You have a log file with thousands of lines. You want to: find all lines containing "ERROR", then from those lines extract just the timestamp (first column) and the message (everything from column 4 onwards). Would you use grep, awk, or both? Explain your thinking — what is each tool best at?
+
+grep "error" /var/log/syslog | awk '{ match($0, $5); print $1, substr($0,RSTART)  }'
+i used both. grep is best at searching and filtering while awk is a complete programming language best at structured data manipulation and reporting.First grep searches through the lines and finds lines contain error inside them. then that data stream is piped to awk. inside awk match function is called. match is a highspeed internal function which scans the raw line from left right looking for the exact position where the the text of column that passed to it starts.then the first column of the error log is printed which reffered to the time stamp. then substr function is called.It stand for substring.It extract a section of text from a string starting at a specific character index.when macth () function find its result its stored in a hidden enviorenment variable called RSTART.RSTART stores an integer representing the exact character position where that specified column starts.in awk $0 represent the entire raw line currently loaded into its memory buffer.so when you give $0 and RSTART as arguments to the substr function it slices the raw line from start of the column 5 to end of that line.But after writing this it hits me. why dont i just remove the columns between $1 and $5.
+grep "error" /var/log/syslog | awk '{$2=$3=$4=""; print $0}'
+$2=$3=$4="" makes those columns equal to an empty string and then print the entire line.this is more efficient than the previous one. 
+
+Q10. These three tools — grep, awk, sed — can each do some of what the others do. For example, awk can search for patterns like grep, and grep can somewhat filter columns. So why do all three exist? What is each one's core strength that makes it the right choice?
+
+Eash one also can do what other 2 cant do. Thats why all three exist.grep is for high speed filtering.it can scan massive amount of text very fast and output matching lines.sed is for in place stream editing.It can transform text and modify files directly.It can used to search and replace or delete text directly inside a file.awk is for structured data processing.awk is a complete programming language pretending as a CLI tool.It has rows, columns and mathematical awareness inside it.when your text has structure and you need to perform logic or arithmatic operations on columns (actually text fields in raw text) awk is the best.
+

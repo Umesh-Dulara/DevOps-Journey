@@ -1,0 +1,52 @@
+Q1. You run docker run hello-world and it prints a message then exits. The container no longer shows in docker ps but appears in docker ps -a. Why does Docker keep stopped containers around instead of auto-deleting them?
+
+when docker stop a container it keeps its file state and data logs on disk.This is designed for restarting or debugging the exact same instance.
+
+Q2. You run docker run -it ubuntu bash and type ps aux inside. You only see two processes. From your Day 22 knowledge — what's actually happening at the kernel level that hides the host's hundreds of processes?
+
+when docker start a new container it makes a system call clone() or unshare() with CLONE_NEWPID flag enabled.This call tells kernal to create a brand new isolated PID namespace for this child process.The kernal keeps track of this PIDs by giving them 2 different PIDs at the same time depending on the observer.Inside the container kernal translate the main process to PID 1 and so on.In the host kernal maps that same process to the next available standard PID.Commands like ps aux does not look at raw kernal memory.They gather information by reading text files.So when you run it on the host machine it reads host /proc but when you run it inside container it reads from containers virtual file system that mounted by docker.So it does not see any other processes except the ones running inside the container.
+
+Q3. A teammate installs Docker and runs docker run hello-world but gets permission denied. They fix it with sudo. Why did it fail without sudo, and what's the proper fix so they never need sudo for Docker again?
+
+By default the docker socket (docker.sock) is owned by root user and docker group.If your current user is not root or not in the docker group that user will be blocked from running any docker commands without sudo.
+
+The fix is add user to docker group.
+sude usermod -aG docker $USER
+and  activete that group with new user by 
+newgrp docker
+
+Q4. You run docker run -it ubuntu bash, install curl inside the container, then exit. You run docker run -it ubuntu bash again — curl is gone. Why?
+
+when you run docker run it creates a brand new container. In this command it create a brand new container from ubuntu image.If you are running it for the first time docker will download ubuntu image and start a container.-i flag keeps the stdin open so the container can hear from your key board.t flag allocate a pseudo-terminal to the container.This allow terminal features inside the container.bash is the command you run inside the container.So it becomes the PID 1.when you install curl inside the computer that files are stored in the mount space of that container.when you type exit bash terminates which means PID 1 dies.So every other process dies with it.When you run the same command again docker create another brand new container from that image.It does not have any idea about whats on the host machine or other containers.Because you installed curl in your previous container this container does not have it. 
+
+Q5. You notice 15 stopped containers piling up from repeated docker run commands. What's the production risk of never cleaning these up?
+
+They will consume the storage.If you want to find an old container you or docker daemon have to scan through those containers. 
+
+Q6. You're inside a container and run whoami — it says root. From your Day 22 answer about container root security — should this worry you? What's the difference between being root inside the container vs being root on the host?
+
+Yes that is dangerous.Because root user(UID 0) inside containers is treated as same root on the host.Which means if you run a process inside a container as root the host machine identify that same process is ran by host's root.But containers root can access only its virtual file system that mounted to it.Only thing that seperate it from accessing host files is namespaces and cgroups.If you run that container with sudo or mount your host root drive, a malicious process can break through those walls.It instantly gain full admin permissions over the host machine the moment it steps out the container.One should configure their files to switch to a non root user before running anything inside a container.  
+
+Q7. A junior engineer says "I'll just docker run ubuntu to test something quick." The command runs but nothing happens — no shell, no output, it just exits. What went wrong and why?
+
+its because he didnt specify any flags.No -i means the container is not interactive.no -t means no terminal features.The command exits because there is no running processes inside the container.No PID 1 no container.Its like making a box to put stuff and it disappear even before you putting anything inside it.
+
+Q8. What's wrong with this workflow: someone runs docker run -it ubuntu bash, manually installs nginx, configures it, then says "my container is ready for production"?
+
+The wrong is its just a container not an image.Docker or kubenetes cant make more containers out of containers.They need an image to create containers.It should be your image that ready for production.Its like giving a car instead of the blueprint to factory that makes cars. 
+
+Q9. You run docker ps -a and see 30 containers with auto-generated names like sleepy_darwin and angry_knuth. In a team environment, why is this a problem and how would you prevent it?
+
+In team enviorenment you cant identify which name belong to which container.You can manually name your containers with --name flag.
+If you use a container for database this could be a problem.If the application needs to talk to the database you cant hardcode the conatiner name to your config file cuz it will change next time you start it.
+
+
+Q10. Write a script that launches an interactive container, runs a few commands inside it to prove isolation (check hostname, process list, filesystem), then cleans up after itself. Use only Docker commands covered today.
+
+/home/umesh-dulara/Desktop/devops-journey/phase2-docker/contain.sh
+
+
+
+
+
+

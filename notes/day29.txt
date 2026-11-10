@@ -1,0 +1,152 @@
+Q1. You have a working multi-container app where you start each service with separate docker run commands — each with --network, -v, -p, -e, and --name flags. It works fine. Why would you still move to Docker Compose?
+
+Because you have to start, mount and add to the networks each one seperatly.with a compose file you can do it all at once.
+
+Q2. You define a service in your docker-compose.yml with depends_on: [database]. You bring everything up and your app crashes because the database isn't ready to accept connections yet. What's the gap between what depends_on actually guarantees and what you assumed it does?
+
+By default depends_on only wait for a container to start.It does not wait for the services inside the container to be fully operational or ready accept traffic.your app crash because it was started and start sending data to the database container before it was fully functional.Even though the container startdet in a second or two it may take more time to setup its files.Like copying database files to a mounted space.To fix this gap you can pair depends_on with a healthcheck.This will force docker compose to pause until the dependency is completely ready and healthy.
+
+depends_on:
+    database:
+       condition: service_healthy
+
+Q3. Here's a snippet from a compose file:
+
+yaml
+
+
+services:
+  web:
+    image: nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./html:/usr/share/nginx/html
+    networks:
+      - app-net
+  api:
+    build: ./api
+    ports:
+      - "5000:5000"
+    networks:
+      - app-net
+networks:
+  app-net:
+    driver: bridge
+You exec into api and run curl http://web:80. It works. But you never set up any DNS entries. How does api know how to resolve the name web?
+
+Docker compose automatically creates a user defined network using bridge driver by default.Since user defined networks has a embedded DNS server docker can resolve names to IP addresses.In this case you already created a network called app-net and has assigned the containers to it.So thats how and its not the api that resolve the name deb its the embedded DNS server.
+
+Q4. You run docker compose down and then docker compose up -d again. Your database is empty — all the data is gone. What's missing in your compose file, and what would you change?
+
+your compose file is missing volume mount.So when the containers are down data is gone.add
+services:
+   db:
+      volumes:
+         - database:/your/data/base
+and declair the volume at the bottom with
+volumes:
+   database:
+
+Q5. What's the difference between docker compose down and docker compose down -v? In what scenario would using the wrong one cause you serious pain?
+
+docker compose down will only delete the container, networks and links to the anonymous volumes.which means your data in named volumes and anonymous volumes(even though hard to find it) are safe.But -v flag will delete the volumes too(named or anonymous).But bind mounts are still safe.
+scenario - if you docker compose down -v a multi container app that has a database container and its using a named or anonymous volume, all the data in the database will be gone.
+
+Q6. Your compose file has an api service with this:
+
+yaml
+
+
+environment:
+  - DB_HOST=database
+  - DB_PASSWORD=secretpass
+Your colleague reviews it and says "this is fine for dev but would be a security problem in production." What's the concern, and how would you handle credentials differently?
+
+Because any user with basic docker read permission can run docker inspect <container name or id> and read the entire configuration of the file in plain text.
+for dev you can use an .env file. Add the password to it and use it as DB_PASSWORD=${DB_PASSWORD}.However .env file still not recommend for production.because if you use this in production the enviorenment variables are visible to anyone or anything run on the server in plain text.How is that only the child processes of that shell can see the enviorenment variables? well docker works differently.docker compose will read .env file and inject those values directly into the container configuration.Everything and everyone inside in that container can see that enviorenment variables.
+
+
+You can use docker secrets for production.Instead of passing the password as plain text throgh the enviorenment, docker mounts the secret as a secure temporary file inside the container.What you do is write the password into text file.But you need to update your database connection logic to check the existence of the secret file, read its content and use that string as the password.you can call it inside the compose file like this
+
+secrets:
+  db_password:
+    file: ./secret_key.txt
+
+for better security you can create a dedicated user for deployment and set the file permission 600 and ownership to that user.So anything on the system need root access to read the file.
+
+Q7. You have a compose file with build: ./api for a service. You change the source code in ./api/, then run docker compose up -d. Your changes don't appear. Why not, and how do you fix it?
+
+docker does not build the image blindly. when you run this file with docker compose docke CLI will check local cache before even touching your dockerfile.But this lookup has a downside.It does not check the layer cache.Docker CLI only checks the image name.If you havent provided a name to the image docker deamon generate a name and tags using a strictly build in formula.[directory_name]-[service_name]:latest.If an image with that name exist docker CLI will ignore the build step by not sending any instruction to the daemon.So build command inside the docker compose is completely blind to the layer cache breaks.Thats why your changes were not applied to the image.Because it was not rebuild.So the docker daemon launches your container from that same image.To rebuild your image you have to force the docker compose  with --build flag.
+
+docker compose up -d --build 
+
+Q8. In the Day 29 compose example, the web service uses image: nginx:alpine but the api service uses build: ./api. When would you choose image vs build for a service, and what's the trade-off?
+
+image - uses a prebuild image or download and use to launch a container.You can use this if you have already build your image for your service or for third party tools where you dont need to touch or modify the underlying source code.Trade offs are , you cant change the source code, image structure of the service.But you have fast startups and high portability.
+build - docker build the image locally before starting the container.You can use this for your own custom service code that changes frequently.Trade offs are slower startups and low portability.Because anyone whos running the compose must have the source code and should run on their own enviorenment.But if you have a working source code you can modify dependencies, base OS or enviorenment flags inside the docker file.
+
+Q9. You're looking at this compose file and something is wrong. Find the problem:
+
+yaml
+
+
+services:
+  api:
+    build: ./api
+    ports:
+      - "5000:5000"
+    depends_on:
+      - database
+    networks:
+      - frontend-net
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+volumes:
+  db-data:
+networks:
+  frontend-net:
+  backend-net:
+
+there are 3 issues
+1. you are using depends_on only.This will crash frontend.Because It will take more time to database to be fully operational after the container has started.pair it with a healthcheck as previously mentioned.
+2. The password is hardcoded to the compose file.
+3. The api and database are in two different networks.the api cant communicate with the database. 
+
+Q10. Write a minimal docker-compose.yml that runs an nginx frontend and a Python API backend. Requirements: frontend accessible on host port 8080, both services on a custom network, and the API is built from a local ./api directory. Don't worry about volumes or databases — just the two services talking to each other.
+
+services:
+   api:
+     build: ./api
+     networks:
+           - api-net
+     healthcheck:
+           test: ["CMD", "wget", "-q0-", "http://localhost:5000/health"]
+           interval: 10s
+           timeout: 5s
+           retries: 3
+           start_period: 5s
+   frontend:
+     image: nginx:alphine
+     depends_on:
+        api:
+          condition: service_healthy
+     ports:
+       - "8080:80"
+     networks:
+       - api-net
+
+
+networks:
+   api-net:
+
+
+
+
+

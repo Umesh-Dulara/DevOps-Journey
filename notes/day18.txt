@@ -1,0 +1,93 @@
+Q1. You run echo '{"name":"ubuntu","version":"24.04"}' | jq '.name' and get "ubuntu" with quotes. But you need the raw string ubuntu without quotes — for example, to store it in a bash variable. How would you get rid of the quotes, and why does jq include them by default?
+
+you can use -r flag (RAW) to get rid of the quotes.
+jq include quotes because it always output a valid JSON.In the JSON specification a string must be wrapped in double quotes.Because jq is fundamentally a JSON to JSON processor.It treats stdout as a new JSON document.Leaving the quotes on ensures that if you pipe the output to another file or tool it remains a structurally sound JSON string.
+
+Q2. You pipe a curl response into jq and get this error: parse error: Invalid numeric literal at line 1, column 1. The curl command works fine on its own. What's the most likely cause, and how does this connect to what you know about stderr vs stdout from Day 13?
+
+This error occur when you try to pass a raw text to jq command.It expect a JSON document.
+If the command respond with error message or in this case a html response that can lead to jq error.because you are not passing a json format inptut to jq.
+
+Q3. Compare these two approaches for extracting a field from JSON:
+
+bash
+
+
+# Approach A
+curl -s https://api.github.com/repos/torvalds/linux | jq '.stargazers_count'
+# Approach B
+curl -s https://api.github.com/repos/torvalds/linux | grep -o '"stargazers_count":[0-9]*' | cut -d: -f2
+Both produce the star count. Why is Approach A more reliable? Think about what could break Approach B.
+
+approch A is reliable because it understand JSON syntax but grep treat the data as plain text.JSON parsers do not care about spacing or newlines, but grep does.If the curl response changes how it formats its response B will fail.grep -o checks for exact matches.If there is even one space in the output ("stargazers_count" : 29993) that does not match the exact regex and it will return nothing.If a line breake occurs right after : grep will only capures up to : and cut will print blank space.If there are multiple matches in the response grep will pass all of them to cut and it will confuse the output.But github api response for a single repository profile returns a unique set of keys at the root level.But inside that response there could be strings that matches grep's regex.But jq uses an abstract syntax tree to cleanly pull star count based on object hierachy.
+
+Q4. You have this JSON: '[{"name":"nginx","status":"running"},{"name":"ssh","status":"stopped"},{"name":"cron","status":"running"}]'. You want to print only the names of services that are "running". Write the jq filter. Now — what does select() do differently than just accessing fields with .?
+
+jq '.[] | select (.status == "running") | .name'
+when you are using '.' it extacts the value of the matching field and discard everything else.For an example if you use jq '.status' it will output only the value of each object.
+But select runs as an if statement (condition checker) it doesnt do anything to the object itself.It takes the object checks whether the condition has met if yes the entire object is passed as stdout, if not that object is dropped.If you use '.' to check the process is running you cant extract its name in next command because it only pass the value of the status.when you use select() it checks the condition and pass the entire object.You can extract the name from that.
+
+Q5. What does jq '.[]' do when applied to an array vs when applied to an object? Try reasoning about both:
+
+bash
+
+
+echo '[1,2,3]' | jq '.[]'
+echo '{"a":1,"b":2}' | jq '.[]'
+Why does jq use the same syntax for both — what's the common concept?
+
+if you pass an array to jq '.[]' it will output items in that array.If you pass an object to jq '.[]' it will output value of the each key inside that object.
+jq use same syntax because it follows same concept.Value extraction..[] strips away the metadata structural wrapping (the array boundaries or object keys) so you can run downstream commands on the pure data values themself.
+
+Q6. You're writing a script that calls an API and expects a JSON response. But sometimes the API returns an error page in plain HTML. Your script does curl -s "$URL" | jq '.status' and crashes. Using what you learned on Day 13 about error handling, how would you make this pipeline robust?
+set -euo pipefail
+curl -sf ...  | jq '.status' || echo "curl failed"
+if you want just pass the stdout on success this method will work.Because pipefail is enabled.
+
+response=$(curl -s -w "\n%{http_code}" https://httpbin.org.org)
+http_code=$(echo "$response" | tail -n 1)
+json_body=$(echo "$response" | sed '$d')
+if [[ $http_code -ge 200 && $http_code -le 300 ]]; then
+	echo "$json_body" | jq '.status'
+else
+	echo "HTTP error code $http_code"
+fi
+
+if you also wanna capture the http status code you can use this.first it store the curl output with http status code append to its last line in a variable called response.then the http status is stripped from that response is stored in http_code.then the last line of the response is deleted and stored in json_body.then it checks the http code.if its success code the json_body is passed as an argument to the jq.if not it echo the http error code.
+
+Q7. You have this in a script:
+
+bash
+
+
+REPO_NAME=$(curl -s https://api.github.com/repos/torvalds/linux | jq '.name')
+echo "Cloning $REPO_NAME..."
+The output is Cloning "linux"... — with quotes baked into the variable. What went wrong, and what's the danger if you later use $REPO_NAME in a command like mkdir $REPO_NAME?
+
+it prints "linux" because jq output the value with quotes as previously mentioned.if you pass the varible as mkdir $REPO_NAME bash see it as mkdir "linux".You can wrap an argument in double quotes to protect it against word splitting.But its whole different story if you wrap a value of a variable in quotes.bash has a hirarchy for command processing.First it expand the parameters.Bash looks at the variables and replace them with their values.Then word splitting comes.bash looks at the values that expanded and split them on spaces.Then the quote removal.In bash there are two types of quotes.syntax quotes and data quotes.syntax quotes are what you type into your script.data quotes comes from an output of onther command.So in this case "linux" is actual value of the variable not linux.the quotes are treated as text string.bash only remove syntax quotes doesnt matter double or single.so when you use mkdir $REPO_NAME it will create a folder named "linux" with quotes inside its name.so if the $REPO_NAME is two or more words bash will split them with quotes.$REPO_NAME="HELLO WORLD" is passed to mkdir as "HELLO WORLD" (two seperate arguments.so mkdir will create two folders.The danger is quotes make it hard to navigate through the file system.you would have to use escaping characters to move through your file system.cd '"hello')
+
+Q8. Write a script called api_check.sh that:
+
+Takes a GitHub username as an argument
+Fetches their public repos from https://api.github.com/users/$1/repos
+Prints each repo name and its star count, one per line
+If the API call fails or returns invalid JSON, exit with an error message
+Use what you know from Day 11 (functions), Day 13 (error handling), and today's topic.
+
+/home/umesh-dulara/Desktop/devops-journey/phase1-linux/api_check.sh
+
+Q9. Look at this jq command:
+
+bash
+
+
+echo '{"servers":[{"ip":"10.0.0.1","load":85},{"ip":"10.0.0.2","load":42}]}' | jq '.servers[] | selct(.load > 80) | .ip'
+There's a bug. Find it. Then — explain what the | (pipe) inside a jq expression does. Is it the same as bash's |?
+
+the bug is you used 'selct' instead of select.(really? dont make me find typos)
+jq pipe streams structured json entities (objects,arrays,strings,numbers) natively within its memory block.It passes JSON output of the left filter as the input of the right filter.No its not the same.bash pipe fork a shell to execute next command in pipeline.jq pipe execute the filter in its own memory space.After all jq is an one utility so it it process its instructions in its own memory block.
+
+Q10. You could process JSON using awk and sed (which you learned on Day 12) instead of jq. Under what circumstances would that actually break — give a specific JSON structure that would defeat a grep | awk approach but that jq handles effortlessly.
+
+this was explained in q3. if the json output has multiple matches in different fields awk or grep will extract all of them.But jq return only the value of a key that you need to filter.This could also break in json formats that doesnt have white spaces.
+

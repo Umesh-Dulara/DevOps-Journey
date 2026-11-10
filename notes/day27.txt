@@ -1,0 +1,64 @@
+Q1. You run a container, create important files inside it, then docker rm the container. The files are gone. Why doesn't Docker save them automatically, given that images have a layered filesystem?
+
+Docker actually saved them automatically.The issue is where docker saved them.
+When container write or modify that action is happening on a top layer.Thess layers stored in host machines internal directory and they are strictly tied to that container.Which means they are deleted with the container.
+Think the docker filesystem is an aliase to the actual file system./var in container is not /var in host.if you go to admin:///var/lib/docker/overlay2 you can find directories with random hash IDs.Those are layers that created by differnt containers.Inside them in /diff there are files that you or the program inside container created inside the container.When you delete a container docker delete this too. 
+
+Q2. You start two separate containers from the same image and write different files inside each. Neither container sees the other's files. Why not — they share the same image layers?
+
+As i mentioned above they are in seperate layers.Its like drawing on two different copies of the same art and asking why one drawing wont appear on other copy.
+
+Q3. You mount a named volume with -v my-data:/app/data, write files, remove the container, then start a brand new container with the same -v my-data:/app/data. The files are there. Where are they actually stored on the host?
+
+They are stored in host's /app/data.When you mount a volume to a container docker uses linux kernal's moount syscall to bind mount your host directory directly into the containers namespace.Normally when container writes a file linux kernal intercept it and save it to the admin:///var/lib/docker/overlay2/<hash id>/diff.But when you mount a volume kernal reads the target path directly from the host and write it into that path.
+
+Q4. A teammate uses a bind mount -v ./config:/app/config to share a config file with a container. They edit the file on the host and the container sees the change instantly without a restart. Would this work the same way with a named volume? Why or why not?
+
+Yes it would work.But the way it works changes.When you mount a named mount it changes host filesystem and bind mount changes the containers filesystem.When you bind mount a volume it replace the containers exact path with the hosts path that you mounted.lets say you bind mount /var/log .So the containers /var/log is now hosts /var/log.The containers actual /var/log is not visible to the container now.named mount copy the files inside the container to host path that you mounted.The copied content are visible to the both host and container.But not in the same way as the bind mount.Bind mount lets the containers to interact with the host actual filesystem.But named mount create a directory with the name you provided under /var/lib/docker/volumes/ and copy the containers files to it.so your actual /app/config never change or if not already exits never created at that location.So when is say it would work its true.But the same way ? No.You have to go to /var/lib/docker/volumes/ and edit from there. 
+
+imagine you and your friend has two identical rooms.But with different contents(belongins)
+
+bind mount - you move into the friends room, throw everything out and design it as exactly as your room.When your friend comes into that room they cant any of their belongings because you throw them out.Now they can only use your belongins.Their belongins are actually exist but not visible to the friend.
+
+named mount - You invite the friend to your room.They come with their belongins and place everything as they were placed in their room.So you can find anything that belongs to you and them and they can do the same.nothing is thrown out.  
+
+Q5. You run a database container without any volume. It works fine for days. Then the container crashes and you docker rm it and start a new one. All your data is gone. How would you have prevented this?
+
+You should mount a named volume to your conatiner.It will copy all the files and folders into your volume with the exact same structure.And you can backup your data and it does not delete the database data even the container crashed, stopped or deleted.
+
+Q6. What's wrong with this command?
+
+bash
+
+
+docker run -d --name db \
+  -v /app/data \
+  postgres:16-alpine
+The developer expects data to persist after docker rm db.
+
+The issue is you havent provided a name to the volume.Docker will create an anonymous volume with a random cryptographic name in its global volume repository folder.The problem with the anonymous volumes is their link to the container is ephemeral.They are designed to be tied to their container.Which means if conatiner is deleted the link between them is broken.So that will make it exeremely hard to find the volume because it has a random cryprographic hash as its name. 
+
+Q7. You use -v ~/project/src:/app/src as a bind mount for live development. Your app inside the container writes log files to /app/src/logs/. Where do those logs end up, and why could this be a problem?
+
+docker will create a folder named /logs inside /project/src directory as root.So you will need sudo previledges to execute that folder.And your project directory is changing its file constantly your version control will flag them as untracked file changes.If you dont add it to the .gitignore you will commit logs to the repo.
+
+Q8. You run docker volume prune to free disk space. Later you realize a stopped container needed one of those volumes. Could this happen, or does Docker protect you?
+
+Yes it could happen if you use destructive flag -a or --all.By default docker volume prune will only delete unlinked anonymous volumes(dangling volumes).If a container is actively using or has not deleted those are not deleted.If a volume in use even -a flag wont touch it.But in this case you havent used -a flag.So volume is safe.
+
+Q9. Write a docker run command that starts an nginx container in detached mode, names it web-dev, maps port 3000 to nginx's port 80, and bind-mounts a local ./html directory to nginx's default serving path so you can edit HTML files live.
+
+docker run -d \
+-p 8080:80 \
+--name sample \
+-v ~/html:/usr/share/nginx/html:ro \
+nginx
+
+Q10. You're designing a Docker setup for a Python app with a PostgreSQL database. The app code changes frequently during development, but database records must survive container restarts and removals. Which type of mount would you use for each and why?
+
+named volume for database - Data stays persitant.If the volume is empty docker will intialize it by copying the database skeleton files from the image into volume upon the first boot.This prevents postgresql from throwing initialization errors.
+
+bind mount for sorce code - because it connects your host directory to containers filesystem any change to the souce code is same as the changing the containers source code.So you dont need to rebuild the image for each change in source code.But only for testing never for production.If this is running on production its safe to use layer rather than a mounted volume.
+
+
+

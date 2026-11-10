@@ -1,0 +1,105 @@
+Q1. What is the difference between [ ] (single brackets) and [[ ]] (double brackets) in bash? If you write if [ -f "$FILE" ], what is [ actually doing behind the scenes — is it special syntax or something else?
+
+the core difference [[]] is a modern built in bash extention while [] is older standard POSIX command.you need quates around variable for word splitting when using [] but in [[]] quotes are mostly optional.inside [] you need to use older logical operaters (-a,-o) but in [[]] you can use standard operators(&&,||). [[]] uses powerful text filtering using == and =~ but [] cannot do this.
+if [ -f "$File" ]
+almost every unix system [ is treated as a direct synonym for the test command and its treated as a program. First bash replace "$File" with its actual text value. then bash execute the test command([) and pass three arguments -f, file path or name and ].The test program([) require closing bracket as the last argument.It hardcoded to the program itself.then [ program chack the file system to see that file exist and is a regular file.then the program exit with the exit code. 0 on success and 1 on failure. then if statement read that exit code and decide which code block to run. 
+
+Q2. Why do we quote variables inside test conditions — e.g., [ "$NAME" = "ubuntu" ] instead of [ $NAME = "ubuntu" ]? What would happen if NAME is empty or contains spaces, and you forgot the quotes?
+
+we use quotes for word splitting. lets say NAME="Umesh Dulara". so when bash execute this line with double quotes the value of that variable becomes a single block of text.and if you didnt use quotes that becomes two seperate blocks of text and bash will throw too many arguments error.If NAME is empty and you forgot the quotes [ wont recieve 3 arguments. It will only recive 2 with = and ]. So the program will throw an error because it recieves = as the first argument instead of comparison operator and get confused looking for single file test(an unary operator like -f or -z) and fails.If you use quotes and the NAME is empty [ gets its 3 arguments and will exit with 1.
+
+Q3. Explain the difference between these comparison operators and when you'd use each:
+
+
+
+-eq - means equal. [ "$age" -eq 20 ]    
+-ne - no equl  ["$status" -ne 404 ]
+-gt - grater than ["$count" -gt 40 ] 
+-lt - less than  ["$age" -lt 18 ]
+-ge - greather than or equal ["$price" -ge 100 ] 
+-le - less than or equal ["$price" -le 100 ]
+
+These are nemeric comparison operators.They are only used to compare whole numbers.If you try to pass text,blank variable or decimal numbers it will throw an error
+
+=  - also means equal ["$USER" = "ubuntu" ]  
+!= - not equal ["$ROLE" != "admin" ]
+
+but these are used for text string comparison
+What happens if you use = to compare two numbers? Does bash care?
+
+
+
+Q4. What does the -f flag test for? How is it different from -d, -e, and -r? Write a one-liner if that checks whether /etc/passwd exists AND is readable by the current user.
+
+-f flag test for if the specified file path exist and a regular file.
+-d flag test the path exist and is a directory
+-e flag test for only the path exist
+-r flag test for path exist and user running the script has permission to read that file
+
+[ -r "/etc/passwd" ]
+
+Q5. Look at this script. What will it print, and why?
+
+bash
+
+
+FILE="/tmp/ghost.txt"
+if [ -f "$FILE" ]; then
+    echo "Found it"
+elif [ ! -f "$FILE" ]; then
+    echo "Not found"
+else
+    echo "Something else"
+fi
+Can the else branch ever execute? Why or why not?
+
+if the file exist it will print found it and if it doesnt it will print not found.
+No it wont run.Because the code checks for existence of the file and is a regular file. And the possible outcomes are path exist or not. since the path has named the file with extention there wont be a file is not a regular file possibility. 
+
+Q6. What is the difference between && and || when used inside a test ([[ ]]) versus outside as command chaining? For example, explain what each of these does differently:
+
+&& is AND operator and || is OR operator when used inside test.which means they checks the both and one condition is true and returns the exit code.
+But outside of test it act as the complete opposit of the regular logical operators.When && used as command chaining it only runs the next command if the first command successfully exucuted.and if you use || in command chaining it runs the next command if the first command failed.As a backup.
+
+bash
+
+
+[[ -f "$FILE" && -r "$FILE" ]] - this checks the file path exist and a regular file in first condition with -f flag and second condition checks if the path exist and the user running the command has the permission to read that file.the test will output 0 if both are true and 1 if one or both are false.
+[ -f "$FILE" ] && echo "exists" - in this case test command checks the existence of the file and only that command exit with 0 then echo command runs printing exists.
+
+
+Q7. What does $? give you after a command runs, and how does if actually use it to decide which branch to take? If you write if grep -q "root" /etc/passwd; then ..., where does [ ] go — and why isn't it needed?
+
+$? gives the exit code of the last ran command or program.If the exit command is 0 you can choose one branch and if exit command is >0 you can choose another. if [[ $? -eq 0 ]]; then.. else ..
+-q suppress all the standard output of the grep command and only returns the exit code.in this case it greps the lines that contains "root" string in /passwd file and if it returns atleast one line the command exucution success and return 0 as exit code. if it doesnt grep anything at all it will return 1. Basically it did the same thing [] did. so there is no need of [] because same task was done by grep.
+
+Q8. You want to check if the curl command is installed on a system before using it. Write an if block that checks this and either prints the version or prints an error. (Hint: think back to command -v from your Day 8 knowledge.)
+
+if command -v curl >/dev/null 2>&1; then
+	echo "Version $(curl --version | awk 'NR==1 {print $2}')"
+else
+	echo "Curl has not been Installed !"
+fi
+
+Q9. What's wrong with this script? Predict what error you'd get and explain the fix:
+
+bash
+
+
+NUM=15
+if [$NUM -gt 10]; then
+    echo "Big number"
+fi
+
+There are no spaces between [ and $NUM and between 10 and ].The error is [15: command not found. Fix is keep spaces between command and arguments.
+
+Q10. (Applied) Write a script called check_system.sh that:
+
+Takes a command-line argument: cpu, mem, or disk
+If cpu — prints the current CPU usage percentage
+If mem — checks if memory usage is above 80% and prints a warning or an OK message
+If disk — checks if any disk partition is above 90% and prints a warning
+If no argument or an invalid argument is given — prints a usage message and exits with code 1
+
+
+answer is at /home/umesh-dulara/Desktop/devops-journey/phase1-linux/check_system.sh

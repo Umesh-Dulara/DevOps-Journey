@@ -1,0 +1,77 @@
+1. What would happen if you ran find ~ -perm 777 on a system where many files are owned by root? Why is this command risky to execute without further filtering?
+
+Command will execute successfully.It will successfully display any 777 files that are owned by root if the parent directories allow you to read them.It will fail to look inside any subdirectories owned by root where your user lacks read or execute permissions.for those it will print an error.Its risky because it targets directories and files indiscriminately,treating critical structural components the exact same way it treats normal text files.Inlinux directories require different permissions than files.For a folder to be accessible it needs execute permissions.If you run a command to change everything found by this search you will accidentally strip the execute bit from directories.On modern linux systems symlinks are almost always set to 777 by default.OS does this because a symlink's permissions dont actually matter, the system strictly enforces the permissions of the target file it poinnt to.If you run this unfiltered command your screen will be flooded with hundreds of harmless system shorcuts, obscuring the actual dangerous files you need to find. It also could cause irreversible application breakage.Many specialized development and system configurations rely on specific permission layouts inside a home directory.Alarming or modifying these without by filtering by file type will instantly crash or break those active enviorenments. 
+
+2. Explain why using -exec chmod +x {} \; with find is generally safer than piping the same find output to xargs chmod +x.
+
+the core reason is how these methods handle special characters, spaces and newlines in file names.xargs splits incoming text on spaces and newlines.if find output my script.sh it will execute as chmod +x my and chmod +x script.sh it will throw an erro as chmod: cannot access 'myscript.sh': No such file or directory in usual case.As worst case if there are files named my and script.sh in that directory you will accidentally change permission of those files.-exec flag passes the incoming text as a single text block. so that cases wont happen in this method.xargs bundle as many text as possible into one single command line. if number of file names or arguments exceeds the systems max command line argument limit xargs can cut off or fail unpredictably.-exec spawns a child process exactly once per argument as a loop.while this takes slightly longer it is immune to argument length limits. 
+
+3. If you wanted to delete only files larger than 1 MiB that are older than 7 days, how would you combine find options to achieve that, and what would happen if you omitted the -delete action?
+
+find <file/path> -type f -mtime +7 -size +1M -delete
+-delete action work with the find command with an AND gate.It only runs find command exit with 0.find command actually runs its search from top to bottom(first directories then subdirectories). But -delete action reverse this behaviour.It runs from bottom to top.It deletes the matching files inside the directory first and only if the directory itself is empty and it matches the specified criteria its deleted.This will protect the unmatching files inside that directory and the directory.but if you use rm -r it will wipe out the subdirectories inside matching directory.
+
+4. Describe a scenario where find … | xargs rm -f could unintentionally delete files you didn’t intend to remove. How can you prevent that?
+
+its described in answer 2. You can prevent this by using -exec.
+
+5. Why does find /tmp -size +1M list files larger than 1 MiB, but find /tmp -size 1M does not? What does the ‘+’ prefix change in the size test?
+
++ prefix indicate greater than. - means lesser than. just 1M means find files that are exactly 1 MB.Thats why find /tmp -size 1M doesnt list files larger than 1MB. It list files that are 1MB.
+
+6. When using find ~/devops-journey -name "*.log" | xargs wc -l, what does wc -l report for each file, and what would be the result if there are no matching .log files?
+
+wc -l reports the number of lines inside that log file and in the end it prints total number of lines in all files found by find.If there is no files this will print 0.when find couldnt find any files xargs recieve a blank pipe. then xargs triggers wc -l with 0 arguments.But since xargs is closing input stream right after execution wc -l immediatly hits EOF(end of file).Since it read 0 lines from the empty pipe before it closed it prints 0.
+
+7. How does the -maxdepth option affect the search performed by find, and why might you want to limit depth when searching large directory trees?
+
+In default find command act recursively.As an example if you use find with sudo or as root give / as file path it will search through all the directories and subdirectories starting from root.-maxdepth act as a boundary to the find command.It tells find to how deep should search go.if you use -maxdepth 0 it only evaluate the starting path directory itself.it wont search inside it.maxdepth 1 will search the directory and then the files and directories themselfs only.No going inside that directories.If you dont use a limit find will search through everything it can access from the starting point.This will cause high cpu spikes , disk I/Os and fill your terminal with outputs.If find large number of results piping them into another commands such as xargs,awk or sort will cause out of memory errors.Because those commands load everything they need to process into memory at once.This can also cause unintended deletions.lets you use find / -type f -name "build" -delete.This will delete evry file named as build or contains build in the name in every directory starting from root directory.
+
+8. Suppose you run find ~ -type d -name "phase*" and pipe the results to xargs -I {} mv {} /tmp/old_phases/. What would happen if a directory name contains spaces, and how can you modify the command to handle such names correctly?
+
+xargs -I act similar to the exec.It processes exactly one line of input at a time and turns off default space splitting.It treats the entire incoming line as a single argument making it safe for file paths and file names that contain spaces.There is no need for modification to handle file names with spaces.Howerver it might need a -maxdepth limit.But this will break if direcotry names contain newline characters(\n).You can avoid this with exec
+find ~ -type d -name "phase*" -exec mv -t /tmp/old_phases/ {} +
+The spaces are handled by -exec. It packages the command name and its arguments into a structured memory array and hands it to the linux kernal. {} act as a placeholder for output of find.
+
+array 1
+
+index 0 - mv
+index 1 - -t
+index 2 - /tmp/old_phases/
+index 3 - /result1/of/find 
+
+array 2
+
+index 0 - mv
+index 1 - -t
+index 2 - /tmp/old_phases/
+index 3 - /result2/of/find
+
+-t flag indicate the target directory.Normal mv command looks like mv <source> <destination>.but with -t flag you can modify the structure of mv command.it swap the destination argument with source argument.This way you can append multiple arguments as source because.however this only work if the source is directory.mv has two modes as migration mode and rename mode.mode is choosen autamatically.if the last argument is a file rename it choose rename mode if not migration mode.With any mode mv does not actually move the file from one point to another it only changes the pointer.+ tells find to gather all the matches into one single array intead of array per one result. so that array woul look like
+
+array 1
+
+index 0 - mv
+index 1 - -t
+index 2 - /tmp/old_phases/
+index 3 - /result1/of/find/ 
+index 4 - /result2/of/find/
+.
+.
+.
+index n - /resultn/of/find/
+
+so the commad would look like
+mv -t /tmp/old_phases/ path1 path2 . . . pathn
+this way mv can change all the pointers at once.
+
+9. Explain the difference between using -exec … {} + and -exec … {} \; with find. In which case does find invoke the command fewer times, and why might that be beneficial for performance?
+
+-exec ... {} + bundles all the argument into one single array and runs the command once. -exec ... {} \; runs the command once for every single argument that passed to it.as an example find command hands one result at a time with.In short find is the parent process as soon as it gets a hit it pauses the search and invoke mv only after mv finished search is continue.which means mv is executed inside finds memory block.But {} + start mv after find finshes its execution.
+-exec ... {} + has less invokes. it only invoke the command once. with {} \; invoking occurence depend on the number of argument passing to the command
+this is benefitial for perfomence because starting and termination a process thousands of times could make high cpu spikes, I/O bursts as explained in answer 8.
+
+10. If you mistakenly run find ~/devops-journey -name "*.sh" | xargs chmod 777, what are the security implications, and how would you mitigate the risk while still making the scripts executable?
+
+it might change the permissions of scripts inside subdirectories too. and with xargs the spaces in file names are not handled. 
+find -maxdepth 1 ~/devops-journey -name "*.sh" -exec chmod 777 {} +

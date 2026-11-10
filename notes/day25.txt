@@ -1,0 +1,56 @@
+Q1. You remove the FROM line from a Dockerfile and try to build. What happens and why can't Docker proceed without it?
+
+The from line import the base layer of the image.You cant run instruction on thin air.You need something to communicate with the hardware.FROM line build that layer.It includes underlying file system, core OS system utilities, a kernal interface configuration and runtime binaries.Docker use a layered filesystem architecture and every layer must be build on top of a parent layer.Without the first layer docker has no reference point for its file allocation tables and literally does not know where to place the files or changes after that line.Thats why it cant proceed without FROM.
+
+Q2. In docker build -t my-app . — what is the . doing? It's not the image name.
+
+the dot is short hand for current working directory in terminal.In docker build command . means build context.It tells docker daemon exactly which local directory on the host contains the files it is allowed to access and copy into the image.Docker operate under client server architecture.Host terminal interface is the client and docker daemon is the server.when you run docker build -t my-app . client looks at your current working directory bundles all the files and directories inside it to a tar archive and send to the docker daemon.Daemon then process the dockerfile.When it hits a command like COPY . . it reads files from that archive.
+
+Q3. A Dockerfile has EXPOSE 8000. You build and docker run -d my-app. curl localhost:8000 fails. Adding -p 8000:8000 to the run fixes it. So what is EXPOSE actually doing?
+
+EXPOSE does not open a port.It just act as a blueprint label.It document which port is going to be used by the program inside the container when its running.This is going to be stored in image's meta data.But you still have to map the port to access it which feels this is useless.But in production containers arent deployed by humen.So lots of ports could be in use in a production server.when new container needs to be deployed you could just docker run -d -p my-app.This will map an available port on the host to the port 80 of the container.Thats why writing this into image meta data is important.
+
+Q4. You COPY app.py . in your Dockerfile, build, and run the container. You then edit app.py on your host. The running container still serves the old code. Why?
+
+The container is copying app.py from the image not from the host.You have to build the image after editing the app.py.(I think i dont need to explain container isolation again)
+
+Q5. Your Dockerfile ends with CMD ["python", "app.py"]. Someone runs docker run my-app bash. What happens to your CMD?
+
+In docker whaterver arguments passed after the image name in docker run will completely erase and replace the CMD instructions specified in dockerfile.So in this case docker will start that container skips the CMD instructions inside dockerfile and run a bash shell as PID 1.Since you are running it without interactive flags bash will hit an EOF and exit.So the container dies.
+
+Q6. You change one line in your app code and rebuild. Most build steps say "CACHED" and it finishes in seconds. What is Docker doing?
+
+Its because docker only rebuild next layers if current layer hit a cache miss.When docker reads your dockerfile i doesnt just look at the text of the command.It calculate a unique cryptographic checksum of the actual contents of the files in host file system.When host file change checksum changes.So when docker compare checksums it realize checksum has changed and hit a cache miss.Then docker rebuild layer that comes after that.Reason that most build steps say "CACHED" is your COPY command sits to the bottom of the docker file.This is called smart layering.The best practice is to COPY your package dependencies first, install them and then copy source code last.
+
+Q7. You run docker build . in a directory with 10GB of video files that have nothing to do with your app. The build hangs for minutes before the first Dockerfile instruction even runs. Why?
+
+Because docker is archiving the content of the current working directory including video files that has nothing to do with the app.
+
+Q8. Each Dockerfile instruction creates a layer. You learned about Union FS on Day 22 — why would Docker stack layers instead of creating a single flat filesystem per image?
+
+Instant container boot time - When you start a new container it creates read only filesystem on the base layers.To use the filesystem docker only has to create an empty wtitable directory on to of that layers instead of duplicating GBs of system files.
+
+Fast operation and minimal resource usage - If the container opens a file that belongs to the base image(host filesystem) it reads it directly from the base read only layer.No ram or disk space duplicated.If you want to edit a file that belong to the base layer UnionFS intercept the action and silently copies the file from base layer to writable top layer.So host files never gets modified.
+
+Safety - If your container deletes a file that belong to the base layer it does not actually deleted from the disk.Insted it createa hidden place holder called whiteout file in the top layer.Its just not visible to the container anymore.
+
+Storage efficiency - If 50 containers ran from the same image all of them share the same underlying read only phisical disk space.Extra storage consumed by only files written or modified by the each containers writeable layer.Its like projecting image to wall and students looking through and drawing on a transparent sheet in a art class.If one student draw something on their sheet the projected image still stay the same.
+
+Q9. What's wrong with this Dockerfile?
+
+dockerfile
+
+
+FROM python:3.11-slim
+COPY app.py /src/
+EXPOSE 8000
+CMD ["python", "/app/app.py"]
+
+The issue is with path. You are copying app.py to the containers /src/ directory.But you are passing a different path to the CMD.
+
+Q10. Write a script that automates a full Docker image lifecycle — build, run, verify the app responds, and cleanup — with error handling from Day 13.
+
+/home/umesh-dulara/Desktop/devops-journey/phase2-docker/docker_life.sh
+/home/umesh-dulara/Desktop/devops-journey/phase2-docker/dockefile
+
+

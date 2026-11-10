@@ -1,0 +1,62 @@
+Q1. You rebuild your image after changing only a comment in app.py. Docker reruns pip install even though requirements.txt hasn't changed. What's wrong with your Dockerfile's instruction order?
+
+Docker is copying app.py before installing dependencies.So docker will rewrite every layer that comes after that instruction.(this was discusssed in day25.txt)
+
+Q2. Your Dockerfile has COPY . . before RUN pip install -r requirements.txt. You move COPY requirements.txt . and RUN pip install above COPY . .. Why does this single reorder dramatically speed up rebuilds?
+
+Same as the previous one this copy requirements firts and install the requirements before copying source code and other files.When you rebuild an image docker has cached the previous image's layers.So if no checksum has changed docker does not need to rewrite any layers.Image build instantly.This order matter because if you do some changes to source code or files docker does not need to install dependancies on rebuild.So this speed up the rebuilds.
+
+Q3. You see CACHED on layers 1–4 during a rebuild but layer 5 runs fresh. You didn't touch anything related to layer 5 — but you did change a file affected by layer 4. Why did layer 5's cache also break?
+
+In docker , layers are designed to build sequentially on top of each other.If one layer breaks cache every other layer that comes after that breaks the cache.When docker process dockerfile it checks the current command plus the parent layer id.If current layer breaks cache it gets a unique new id.so when docker process the next command its parent layer has changed so that layer is rewritten.This goes like a chain reaction.Its like a domino effect.If you push a middle domino in the sequence next dominos falls.But the previous ones stays.So yes layer 5 and all the next layers break cache. 
+
+Q4. You have a .dockerignore that excludes .git and node_modules, but your image is still 800MB for a tiny Python app. You run docker history myapp:latest and see a 650MB layer from RUN apt-get install. What's the .dockerignore NOT protecting you from here?
+
+.dockerignore does not protect you from the actions that done by the other command like RUN.Docker read the .dockerignore before the build even start.So it can protect you from the action happen midway building.It only protect you from build context.apt-get install create lots of .deb installer files and extra unnecessary packages.So if you dont cleanup them in the same layer they are written into the image layers bloating your image.
+
+Q5. Your project has a 500MB training_data/ folder that the app never uses at runtime. You don't have a .dockerignore file. How does this folder hurt your build even if you never COPY it explicitly in the Dockerfile?
+
+when you run build command docker CLI looks at your current directory, read .dockerignore file and archive everything excluding ones inside the .dockerignore and send it to the docker daemon.Daemon then runs your dockerfile by excuting command with that archived files.So your training data gets archived even though you never copy them into your image.So unnecessary amount of resource is used for archiving.
+
+Q6. What's wrong with this Dockerfile?
+
+dockerfile
+
+
+FROM python:3.11-slim
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update
+RUN apt-get install -y curl
+RUN apt-get clean
+CMD ["python", "app.py"]
+Identify at least two optimization problems.
+
+You should add the copy command after installing dependencies.
+You are creating unnecessary amount of layers with run commands.And even though you cleaned at the end cache is still written to the layers.So its just create another layer by whiteouting those cache files.
+
+Q7. You have two images — one built with FROM python:3.11 (900MB) and another with FROM python:3.11-slim (130MB). Both run the same app. The slim build fails with a missing system library. How do you fix it without switching back to the full image?
+
+You can check the logs of the container to identify the missing library.Then add it to requirement.txt or install directly on the dockerfile.This will create the image with the library. If you need a fast build add it to the end of the dockerfile but if you are changing the source code in the future add it before copying source files.
+
+Q8. A teammate argues that docker build creates a single filesystem for the container. You disagree — explain how layers actually work under the hood using what you learned about Union FS from Day 22.
+
+It does not create a single file system.It creates a single blueprint of the file system so all the containers can use it.This layer is read only.If a container needs to write or modify files on that filesystem, docker create a writable layer on top of that layer.(This is explained more briefly on day25)
+
+Q9. Write a .dockerignore file for a Python project that has: a .git/ directory, a .env file with secrets, a __pycache__/ folder, a tests/ directory, a README.md, and a .venv/ virtual environment. Decide what to exclude and justify one thing you chose to keep.
+
+.dockerignore
+.git/
+.env
+__pycache__/
+tests/
+README.md
+.venv
+
+I choose to keep the sorcecode only because keeping any other will violate docker optimization and security.
+
+Q10. You're debugging a slow CI/CD pipeline. The Docker build takes 8 minutes every run. The Dockerfile copies everything first, then installs dependencies. Dependencies change once a month, but code changes every commit. Explain your strategy to cut build time and estimate how much faster it gets.
+
+Install dependencies first.Then copy the files that barely change like images, css files.Then copy the source code.It will be faster than 8 minutes.But when dependencies change it will take more than that time.If you can correctly identify barely changing files this will be still less than 8 minutes.
+

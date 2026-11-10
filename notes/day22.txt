@@ -1,0 +1,52 @@
+Q1. You run a process inside a container and it shows PID 1. On the host, the same process shows PID 4827. How is this possible, and which Linux feature makes it work?
+
+This works under linux kernal PID namespace.This mechanism allow containers to have their own indipendent process spaces.This means a program running inside a container can think its the only process running on a machine while actually operating with other isolated processes.When a docker container is launced it creates a new PID namespace.The primary process inside the container is assigned to PID 1 inside that container.On the other hand the host os see the same process but assign it to a standard, unique system PID inside the host os.This mechanism ensure that container A cannot see, signal or interfere with container B.But in linux systems PID 1 is the parent of all other processes.It has its own resposibilities such as signal propagation, zombie reaping.If you run a standard application as PID 1 in a container that program doesnt konw these responsibilities.So as a result container might ignore docker stop command forcing docker to wait before host kills it with SIGKILL.
+
+Q2. A colleague says "containers are just lightweight VMs." What's fundamentally wrong with that statement? What does a container share with the host that a VM does not?
+
+Fundamental differnce is vms has their own OS while containers run on host os.Including that containers use host kernal.
+
+Q3. Containers start in milliseconds while VMs take minutes. What's the architectural reason for this speed difference?
+
+starting VM is like starting another computer.It has to go through full BIOS boot sequence, intialize memory management and load kernal modules when starting.containers on the other hand is just like starting a program inside the computer.The kernal and other system programs are already running.So it just need to run the programs inside the container.Like starting a program that start another programs.
+
+Q4. You learned in Day 3 that every process has a parent and belongs to a process tree. If a container is "just a process," what happens to the programs running inside it when you kill the container's main process on the host?
+
+IF you kill PID 1 inside the container the host kernal will kill all processes inside the container and entire container is shut down.This happens because linux has strict rule.In linux PID 1 is the anchor of its PID namespace.If PID 1 dies the namespace dies with it.Thats the rule.
+
+Q5. You want to limit a container to 512MB of RAM. From your Phase 1 knowledge, you know Linux manages resources. Which kernel feature enforces this limit — and what would happen if the container tries to exceed it?
+
+The kernal feature is called cgroups or control groups.
+If the process (container) exceed the limit cgroup triggers an OOM event.This happens because every time a process request for memory it has to go through its cgroup.Then kernal checks that cgroup accounting counters before handing more memory.If allocating more memory (or resouces) would exceed cgroups limit kernal invokes a kernal function called mem-cgroup OOM killer (instead of system wide OOM killer which would look at the whole available RAM in the machine).This function scans the processes inside that cgroup and deliver a SIGKILL to the process that using most of the memory.(Usually this is PID 1 and the whole container will shut down)
+
+Q6. Two containers are running on the same host. Container A has a file /etc/config.yaml and Container B also has /etc/config.yaml — but with completely different contents. Both containers share the same kernel. What prevents them from overwriting each other's files?
+
+when you start a container, the container runtime (docker or containerd) uses a kernal feature called mount namespace and pivot_root (or chroot) to build a virtual custom root directory for that specific container.Before starting containers these files are actually located in different places.When containers is starting docker mount that file to /etc/config.yaml.The kernal then create a private virtual filesystem map just for that container where /etc/config.yaml directly point to its actual location.That container cannot see the rest of the host filesystem.Kernal do the same for container B.They act like aliases or varibles to the actual path. so it was never the same file or 2 files in same directory with same name in the first place.So there will be no overwritting or race condition.
+
+Q7. A junior DevOps engineer builds a container image and notices it's 1.2GB. They say, "That's fine, containers are supposed to be small but it doesn't really matter." What are the real-world consequences of running oversized images in production?
+
+Slow deployments - every time new server or kubernetes node runs the image for the first time it must download and extract every layer over the network.So big images = long deployment time
+
+Host disk exhaustion - container runtimes store extracted image layers on the host disk.If disk fills up or exceed cgroup limit if more containers are loaded host will fail to launch them with no space left on device errors.In kubernetes, the node will trigger DiskPressure condition and start evicting running pods.
+
+Pipeline bottleneck - Building, pushing and pulling large images slow down the pipelines and consume heavy network bandwith.
+
+Larger attack surface - If image contains unnecessary tools like compilers, pakage managers they will add extra security vulnerabilities.
+
+Q8. You're debugging a production issue. The app works perfectly in the developer's container but fails on the production VM (no container). Someone suggests "just run it directly on the VM, containers add unnecessary complexity." Make the case for why that's dangerous thinking in a team environment.
+
+The problem is container already captured a working, self contained enviorenment.It has everything that program needs to run.But you cant predict the VM has the same enviorenment as where the program running computer.Thats why it fails.
+This will bring back all the issues that containarization was addressing in the first place.Configuration mismatches, dependency collisions, controled resource management, slow fragile rollbacks, scaling issues.
+This is dangerous in team enviorenment because when production runs differntly from local enviorenment every bug becomes harder to reproduce.Developers have to manually configure local enviorenments or debug in the production enviorenment.
+
+Q9. What's wrong with this reasoning: "Since containers share the host kernel, if I run a container as root inside it, the container is completely isolated and the host is safe."
+
+The issue is root inside a container is by default the exact same root user on the host kernal.Because containers share the same kernal any container breakout or misconfigured mount gives that process full admin control over host machine.If a host directory is mounted into a container running as root, the container gains unrestricted root r/w permissions over those host files.
+
+Q10. Write a short bash script that demonstrates one aspect of how containers achieve isolation. Use Linux namespaces — specifically, run unshare --pid --fork --mount-proc bash -c "ps aux" and compare it with a regular ps aux. In your script, capture both outputs and explain in comments what the difference proves about container isolation.
+
+
+/home/umesh-dulara/Desktop/devops-journey/phase2-docker/isolat.sh
+
+
+

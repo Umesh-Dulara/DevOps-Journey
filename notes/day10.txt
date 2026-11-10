@@ -1,0 +1,149 @@
+Q1. What is the difference between a for loop and a while loop in bash? When would you choose one over the other — give a real scenario for each.
+
+The difference is how they determine their execution length.A for loop iterates over a predefined list of items or elements but while loop contineus its execution as long as a specified condition evaluates to true.
+we use for loops when we know the exact items, files or range beforehand. (eg: to print the first 5 lines of a file)
+we use while loops when the number of iterations depends on dynamic criteria. (eg: when reading an unpredictable stream of data. to read all the number of lines where we dont know the exact number of lines contain in the file.)
+
+Q2. Look at this loop. What does it print, and why does it stop?
+
+bash
+
+
+for i in {1..5}; do
+    echo "Number: $i"
+done
+
+it prints Number: 1 to 5 five times.It stops when i=5. in standard bash for loops shell automatically manages the loop varible for you. Behind the scenes for act as an iterator. when you provide the prdefined number of items loop mechanism performs two actions during every loop. first it grabs the next sequential item from your predefined list. Then overwrites the loop variable with that item. when it reaches the end of the list loop terminates on its own.But in while loops you have to manually increment the loop variable. Otherwise the loop variable stays same and loop will run forever.
+
+What happens if you write {5..1} instead? What about {1..10..2}?
+
+if you write 5..1 it will print number 5 to 1. 
+{1..10..2} will print the first item of the list(1) and the second item after that item(3) and second after that(5) untill end of the loop.(10) 2 is the increment value here. 
+
+Q3. What is the difference between these two loops? Will they produce the same output? Why or why not?
+
+bash
+
+
+# Loop A
+for FILE in *; do
+    echo "$FILE"
+done
+
+in bash * is a wildcard character known as afile glob.It tells bash to automatically match and expand into a list of all visible files and directories in your current working directory. so for loop sees it as a list of file and directory names.
+
+# Loop B
+ls | while read -r FILE; do
+    echo "$FILE"
+done
+(Hint: think about what happens with filenames that contain spaces.)
+
+while loop expect only an exit code from the command next to it.It will continue the loop untill it recive non success exit code. so here ls command rnus first and pipe its output to the read command as input. The output of the ls command recieve to the read command in a memory buffer. so the read command reads that output untill it hits a newline character and and then it pulls that byte chunk of string and assign it to the FILE variable. So that data is gone from the memory buffer that passed from ls command and assigned to the varible. Then while recieve its exit code as 0 and loop continue by printing the value assigned to the variable.when all the data is gone from the buffer read command hits EOF(End-Of-File) and cant assign anything to the varible and return non zero exit code and while loop stops.
+So yes both loops will produce the same output.
+
+in this case spaces in file names doesnt affect the code because variable is inside the "" that support word splitting. And because you are using echo command. echo will prints the output as one chunk of string or other. But if you use command like cat and the quotes arent there it will throw too many arguments error. Because you are asking cat to open two file names. And there is a bug in ls | while read -r loop. if a file is named as file\nhello.txt the read command will assume this as two lines. because it contains a line seperator eventhough there are no spaces.
+
+Q4. What does this while loop do, and when does it stop?
+
+bash
+
+
+COUNT=1
+while [ $COUNT -le 5 ]; do
+    echo "Count: $COUNT"
+    COUNT=$((COUNT + 1))
+done
+
+first caount varible is declared and assigned to 1. the satrt the while loop. next to the while loop is the test command that checks the current value of the current variable is less than or equal to 5. if that command exit with a non zero exit code then the rest of the while loop runs. echo command print the Count: current value of the variable. then next line performs the arithmatic expansion and reassign it value to count variable(increment).then the "done" closes the "do" and go back to the top with the current value of the variable and checks the condition. The cycle repeats until variable equal to 5 and stops.
+
+What happens if you forget the line COUNT=$((COUNT + 1))? Why is that dangerous?
+
+if you forget the increment the value of the variable stays the same and loop will run forever.
+
+Q5. What is an until loop? How is it different from while? Rewrite this while loop as an until loop:
+
+An until loop repeat the code block inside the loop as long as specified condition is false and stops the moment that condition becomes true.
+
+bash
+
+
+NUM=10
+while [ $NUM -gt 0 ]; do
+    echo "$NUM"
+    NUM=$((NUM - 1))
+done
+
+NUM=10
+until [ $NUM -eq 0  ]
+do
+	echo "$NUM"
+	NUM=$((NUM - 1))
+done
+
+Q6. You want to loop through every .sh file inside ~/devops-journey/phase1-linux/ and print its name and size. Write that loop. (Hint: combine for with a glob pattern, and think about what command gives you file size.)
+
+for file in *.sh; do
+        echo " File name: "$file" File Size: $(stat "$file" | awk 'NR==2 {print>
+done < ~/devops-journey/phase1-linux/
+
+
+Q7. What's wrong with this script? What will it actually do versus what the author probably intended?
+
+bash
+
+
+for i in 1 2 3 4 5; do
+    echo "Checking server $i"
+    ping -c 1 192.168.1.$i
+    if [ $? -ne 0 ]; then
+        echo "Server $i is down!"
+    fi
+done
+(Hint: think about what happens to the loop if set -e is at the top of the script.)
+
+there is nothing wrong with the current script and it will serve its pupose as intended. but if set -e is at the top there is a risk at somepoint the script will fail. In bash set -e (errxit) instruct the shell to exit immediately if any command exits with a non zero status. Since this is at the top every command after that line will follow that instruction. If any server among 5 is down the ping command will exit with none zero exit code. So if the first server is down script will terminate without checking other servers.
+
+Q8. Explain what this loop does line by line. What real-world problem does it solve?
+
+bash
+
+
+df -h | grep -vE '^Filesystem|tmpfs|udev' | while read -r line; do
+    USAGE=$(echo "$line" | awk '{print $5}' | sed 's/%//')
+    MOUNT=$(echo "$line" | awk '{print $6}')
+    if [ "$USAGE" -gt 80 ]; then
+        echo "WARNING: $MOUNT is at ${USAGE}%"
+    fi
+done
+You've seen this pattern before — where?
+
+df is stand for disk free and -h flag for humen readable.this will give the disk usage in humen readable format. then its piped to grep -vE. -v flag tell to grep do its opposit behavior. instead of showing matching lines it will output evrything else. E falg allows to use advanced regex characters like |,+,? without needing to escape them with backslashes.^ indicates the begining of a line or string.In this command it means match the word 'Filesystem' only if its the very first on the line. then there is the |(OR) operator. it means match the Filesystem (if its at the begining of the line) or tmpfs or udev.since we used -v grep will output the exact opposit of these matches. and then its piped into read command that inside of while loop.the read command has -r flag. r flag tells read command to prevent backslashes from acting as escape characters.This is because sometimes paths contain backslashes and its best practice to use -r flag. then read command stores the first output from the buffer(as previously mentioned) in "line" variable.if the read command exit with non zero exit code the loop starts.inside the loop using echo command prints the value of the "line" variable and piped into awk command and it prints the 5th element of that line which contains the usage of the selected disk.then its piped to sed command. s is substitude command in sed.it act as sed 's/target search pattern/replacement'. in this case it tells sed command to find the % sign and replace it with nothing.Then the stripped output is stored in USAGE variable.In next line again with echo command line variable is printed and is piped to awk where it prints the 6th element of that string seperated by spaces.which stores the mount point of the selected line. then there is a if else statement. it checks the usage is higher than 80 percent with test command and if that returns true echo command runs with a warning message that says which mount point is above 80% and its usage in %. then the if statement is closed and do is closed with done.So basically this script will check file system and will print a message if your file system usage is above 80%.(this excludes the temporary enviorenments and virtual derectory used by linux to manage pysical device nodes such as USBs and drives)
+this fixes automated server monitoring and incident prevention problem.
+in my health_check.sh script.
+
+
+Q9. What is the difference between piping into a while loop versus using process substitution or a here-string? Look at this:
+
+bash
+
+
+COUNT=0
+echo "one two three" | while read -r word; do
+    COUNT=$((COUNT + 1))
+done
+echo "Count: $COUNT"
+What does it print — and why isn't it 3? (This is tricky — think about what a pipe does to the shell.)
+
+The difference is when you use a pipeline bash forks a seperate backgrount anvironment(subshell) to run the loop. any variable you create inside that loop vanish completely after loop finishes. process substitution and here-strings keep the loop in the main shell allowing variables to survive.
+
+in this code echo command is piped to while loop.Increment happens inside the loop and words will assign to the word variable and loop will run. But the COUNT variable is called outside of that loop which means it runs in main shell. so even thogh the variable was incremented inside the subshell it naver made it into the main shell. So the count variable remains same and will print as 0.
+
+Q10. (Applied) Write a script called ping_sweep.sh that:
+
+Takes a network prefix as an argument (e.g., 192.168.1)
+Loops through IPs .1 to .10 and pings each one once
+Prints whether each host is up or down
+At the end, prints a summary: "X hosts up, Y hosts down"
+If no argument is given, prints a usage message and exits with code 1
+
+answer is in /home/umesh-dulara/Desktop/devops-journey/phase1-linux/ping_sweep.sh

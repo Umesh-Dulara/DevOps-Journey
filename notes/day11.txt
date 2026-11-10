@@ -1,0 +1,125 @@
+Q1. You write a function like this:
+
+bash
+
+
+greet() {
+    echo "Hello, $1!"
+}
+greet
+You call it with no arguments. What happens? What does $1 evaluate to, and what will the output look like? Why doesn't bash throw an error?
+
+bash will throw an error as unbound variable at line #(I thought this is what happens then i learned).
+If you call it with no arguments function will still run and output Hello,!.when you define a function that expects arguments but call it without passing anything bash simply intializes that variable as an empty string. So bash will not throw any errors.Even though you use set -euo pipefail at the top script will run. Because -u bahaves differently inside the functions depending on how the missing argument is reffered.-u flag usually errors out on unbound variables. But inside functions bash makes an explicit exeption for posistional parameters.Bash do this because functions can dynamically handle zero or more arguments without crashing the script.
+$1 evaluate to the first argument that passed to the script.
+Output will look like Hello, <the first argument that passed to the script> ! in this case its an empty string.
+
+
+Q2. What is the difference between return and echo inside a function? If you want a function to "give back" a string (like a filename or a computed message), which one should you use and why?
+
+The core differnce is echo sends output to the terminal or a varible while retun only outputs an status code to show if the function secceeded or not.The function will continues executing rest of the function after echo command while return command stops function and returns to the main script.
+You should use echo because it can store the file name or computed message inside variables too and return only outputs an integer ranging  0-255.
+
+Q3. In bash, return 0 means success and return 1 means failure. This is the opposite of most programming languages where 0 = false and 1 = true. Why did Unix/Linux design it this way? Think about what exit codes need to communicate.
+
+Unix is designed that way because there is only one way a command can succeed but there are so many ways to fail them.If a command fails user or OS need to know why it failed.If 1 means true/success you would only have 0 left to know why it failed. By making 0 means successs unix frees up the numbers from 1 to 255 to act as unique error codes.
+6 = could not resolve host(DNS issue)
+7 = Failed to connect to host(server down)
+28 = Operation timed out.
+
+Q4. Look at this code:
+
+bash
+
+
+is_even() {
+    if [ $(($1 % 2)) -eq 0 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+is_even 4
+RESULT=$?
+echo "something else"
+is_even 7
+if [ $RESULT -eq 0 ]; then
+    echo "4 is even"
+fi
+Will this correctly report "4 is even"? Why does storing $? in a variable matter here — what would go wrong if you didn't?
+
+Yes it will print 4 is even.
+Bash does not execute functions unless they are called. So the first time its called it will run with argument as 4 and the stores the exit code of the function in RESULT variable.Then script will echo "something else". And then again function is called with 7.Then the script checks the value of the Result variable is equal to the 0. Since the 4%2 is 0 the function will exit with 0. That makes the test condition true and echo "4 is even". Storing exit code in a variable matter here for execution sequence. If you use the $? directly inside test condition it will send the exit code of the 7 used as argument wich exit with 1 and test condition becomes false and script will terminate after outputting "something else.". I dont understand the goal of this scrpit but it will echo "something else" even though you pass an even number. 
+
+Q5. What happens if you forget to use return in a function? For example:
+
+bash
+
+
+my_func() {
+    echo "doing stuff"
+    ls /nonexistent 2>/dev/null
+}
+my_func
+echo $?
+What will $? be after calling my_func, and why?
+
+If you dont use retun in a function it will exit with the exit code that last command ran inside that function. if ls /nonexistent successfully ran the $? will be zero and if it failed $? will be whatever the exit code ls outputs. This works as long as every command inside function runs successfully or without set -e at the top.If you havent set -e and dont use return, eventhough a middle command failed function will exit with success code. 
+
+Q6. Variables inside a function are global by default in bash. So if a function does COUNT=99, the calling script's COUNT gets overwritten. Why is this dangerous in a larger script? How would you describe the problem in your own words — and if you had to guess, what keyword might bash offer to prevent it?
+
+Having variables global by default introduces hidden side effect, hard to trace bug and breaks code isolation.In a small script you manage your variables.But in a large script a function can silently overwrite a variable silently used by the main script or differnt function without warning like you mentioned.This can cause infinite loops. If your main script loops using i and calls a function that also loops using i, it will create a infinite loop.bash offer two main keywords to solve this and limit the scope of a variable. You can use local or declare when declaring a variable.But even though you use those keywords bash has a unique behaviour called dynamic scoping.If function A declare a local variable and then function A calls function B inside it Function B still can see and modify function A's variables.
+
+Q7. You want to write a function that takes a filename as an argument and tells you whether the file exists and is readable. Using what you know from Day 9 (conditionals and test flags), write the logic in pseudocode or real bash. What test flags would you use?
+
+check () {
+[[ -f "$1" && -r "$1" ]]
+local status=$?
+if [ $status -eq 0 ]; then
+	echo "$1 exist and readable"
+	return 0
+else
+	echo "$1 doesnt exist or unreadable to the current user"
+        return $status
+fi
+}
+check "/home/umesh-dulara/Desktop/devops-journey/devops_roadmap.md"
+
+Q8. Look at this practical pattern:
+
+bash
+
+
+check_service() {
+    SERVICE=$1
+    if systemctl is-active --quiet "$SERVICE" 2>/dev/null; then
+        echo "✅ $SERVICE is running"
+    else
+        echo "❌ $SERVICE is NOT running"
+    fi
+}
+check_service ssh
+check_service nginx
+check_service fake_service
+Why does the function use 2>/dev/null after the systemctl command? What would happen without it? And why does --quiet matter here?
+
+2 stand for standard error(stderr) in bash. /dev/null is like a balck hole in linux. It deletes anything thrown in to it completely.so in this function this is used to redirect all the stderr output to the /dev/null.In this function there is no need of 2>/dev/null because --quiet flag is already suppressing the stdout and stderr. But if you only used 2>/dev/null systemctl command will print its stdout to the terminal (active,inactive or unknown). --quiet flag matters here because you redirected stderr only. It will still print the stdout of the systemctl making the output of the script messy.If you redirected both stdout and stderr both using >/dev/null you dont need --quiet flag here.
+
+Q9. You want to combine functions with a loop (Day 10). Write pseudocode or real bash that: defines a list of 3 services, loops through them, and calls a check_service function for each one. Why is this pattern (function + loop) powerful for DevOps tasks?
+
+answer is in /Desktop/devops-journey/phase1-linux/service_check.sh
+This combination mirrors the core philosophy of infrastructure automation, decoupling logic from data.By seperating what you do(function) from what you do it to(loop) you can can create scalable,reusable and predictable automations.
+
+Q10. You have a function inside a script:
+
+bash
+
+
+deploy() {
+    echo "Deploying $1..."
+    return 0
+}
+You call it from the command line after the script finishes: deploy myapp. Will it work? Why or why not? How is a function's scope different from a standalone script's?
+
+No it will not work. bash will throw an error like command not found.when you run a script bash creates a temporary child process(subshell) to run it.That function is defiened inside that child process. After script finishes that child process is completely destroyed. And you are returned to your terminal process which has no memory of that deploy function because it is not defined in this shell session.
+the core difference is process boundaries and memory management.A function runs inside the same process while standalone scripts spawns an entirely new child process to run.Variables inside functions are gloabl on default and parent script can see and modify them. But variables in standalone scripts are completely isolated unless exported.Function scopes are extremely fast because the function is already loaded into current shell's RAM. But standalone script scope is slow because OS must fork a new process,find script file and intialize it.

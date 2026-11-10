@@ -1,0 +1,110 @@
+1. What is an IP address? What is the difference between a private IP and a public IP? Run ip addr show — which one is your machine's IP?
+
+IP adress or internet protocol address is an unique numerical address that has assigned to every device.(computers,smart phones,servers, etc)
+Public address is assigned to your device by your ISP its unique across the entire global internet and its open to the internet while private IP address is assigned to your individual device and hidden to the internet.
+3: wlp8s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+the inet 192.168.x.x is my computers ip address
+
+2. What is a port? Why do services use specific port numbers? Give 5 examples of well-known services and their default ports.
+
+a port is a virtual communication endpoint managed by devices' os that directs incoming or outgoing traffic to correct application or service.
+services use specific port numbers inorder to run multiple network connected services or applications at the same time without mixing the data.(Multiplexing)
+port 21 - FTP(file transfer protocol)
+port 25 - SMTP(simple mail transfer protocol)
+port 53 - DNS(domain name system)
+port 80 - HTTP
+port 443 - HTTPs
+
+3. What does ping do under the hood? What protocol does it use? Run ping google.com -c 4 and explain what the output means line by line.
+
+basically ping command test the reachability of a host. ping command operate using the internet control message protocol. It send an ICMP echo request packet to the designated IP address(host) and if the host is up and reachable it returns an ICMP echo reply packet.Thats what happens under the hood.
+
+PING google.com (2404:6800:4000:101f::8a) 56 data bytes
+this simply says its going to ping google.com at this IPv6 adress with 56bytes packet
+
+64 bytes from lcbomo-in-f138.1e100.net (2404:6800:4000:101f::8a): icmp_seq=1 ttl=113 time=203 ms
+*64 bytes is the size of the reply. why do i get a 64 while i only send 56 bytes? - i get the extra 8 bytes from the ICMP header. 
+Type & code(2bytes) - identifies the message as an "echo reply"
+checksum(2bytes) - ensure the packet wasnt corrupted during the travel.
+identifier and sequence number(4bytes) - maps the reply to the exact request that sent
+*from lcbomo-in-f138.1e100.net is the reverse DNS hostname of the server that responded.
+*(2404:6800:4000:101f::8a) is the IPv6 address of that server
+*icmp_seq=1 is the sequence number of the ping request. with -c4 flag it send 4 request so this is the first request
+*ttl=113 how many more routers that packet was allowed to travel before its being discarded.this is a safety mechanism. It start at a maximum number(like 64 or 128) and drops by 1 as it travel through one router. so in this case it took 15 routers to get to my device from the google server. internet routing can be asymmetrical. So that doesnt mean it took exactly 15 routers to the request get to the google server.
+*time=203ms is the latency. Time it took for the roundtrip. 
+
+--- google.com ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3003ms
+rtt min/avg/max/mdev = 169.964/212.208/249.171/29.325 ms
+
+first line shows how many packets were sent, recieved, how much was the packet lost as a percentage and time took for the entrire command to complete.
+secon line shows the round trip time as minimum,average,maximum and the mean deviation in ms.
+mean deviation means the average of the difference between average rtt and actual latency. This helps to meassur the stability of the network. higher mdev mean network connection is unstable and low mdev means connection is stable.
+
+4. What is DNS? What happens step by step when you type google.com in your browser?
+
+DNS is Domain name service. It maps the ip addresses to simple human readable strings(such as google.com). 
+when you time google.com in browser it first try to find the ip address mapped to that website name. First look in the local cache(Local DNS) to find if you have recently visited that site; if not then browser send a request to DNS recursor(usually run by your ISP or a public service like google or cloudflare) then recursive resolver ask a root nameserver that act as the starting point and point the resolver to the correct Top lavel domain(TLD) server. TLD nameserver looks at the extension of your request and points the resolver to specific authoritative nameserver for that TLD. Authoritative server holds the actual records for the websites with that TLD and give the exact IP address for that website to the resolver. Resolver the send that IP address to the browser and save it in cache. Then the browser connect to the googles load page. 
+
+Intermediate
+
+5. Run ss -tulnp in your terminal. What does each flag mean? What services are currently listening on your machine and on which ports?
+
+-t - tcp. display only tcp sockets
+-u - udp. display only udp sockets
+-l - listening. display listening sockets
+-n - numeric. dont resolve service names
+-p - processes. show the process using the socket
+
+tcp - port 53,43463,631
+
+6. What is the difference between TCP and UDP? Give a real-world example of when each is used and why.
+
+TCP is connection oriented while UDP is connectionless. TCP establish a connection between sender and reciever using 3way handshake(SYN,SYN-ACK,ACK) before sending data and it guarentee the the right data recieve to the right reciever. But UDP doesnt guarentee the delivery, order of the packets or recovery of the packets.UDP is fast and unreliable but TCP is reletively slow but reliable.
+TCP is using in web browsing(HTTP/HTTPs),emails(SMTP),file transfer()FTP
+UDP is used in real time applications like DNS lookups,live video streaming and online gaming
+
+7. Run these two commands and explain the difference in output:
+
+bash
+
+
+curl https://httpbin.org/get
+curl -I https://google.com
+
+firt curl request outputs the actual HTML,JSON or text content returned by the server. 
+second request outputs only the metadata of the server.(HTTP status code,server type,content type,cookies...)
+
+
+
+8. What is a subnet mask and what is CIDR notation? What does /24 mean in 192.168.1.0/24? How many usable hosts does it give you?
+
+subnet mask is a 32 bit address that devide an IP address into network bits that identifies the network and host bits that identify the host device operating on that network.
+CIDR means classless inter domain routing.It is a compact way to represent an  IP address and its associated network mask using an IP adress, a slash and a decimal sufffix number. 
+/24 means the size of the network block.In this case it means that the first 24 bits of the 32 bit IPv4 adress are dedicated for the network identifier leaving remaining 8bits for individual device addresses.if we calculate this we get 2 to the power of 8 = 256 ip addresses. but we cant use the first and last ip addresses because the first one is used to identify the network itself and last one is used for broadcasting. So that leaves 254 usable hosts.
+
+
+Think about it
+
+9. What is the loopback interface (lo)? Run ip addr show lo — what is 127.0.0.1 and why does every Linux machine have it? What is it used for?
+
+loopback interface is a software based network interface that allows a device or a program to send and recive data to and from from itself.127.0.0.1 is the reserved IPv4 address for loopback interface commonly reffered as localhost.every linux machine has it because the operating systems' core networking stack relies on it for internal communication.
+it used for inter-process communication,testing and diagnostics, software development
+
+10. When you run curl https://google.com, what happens at the network level — step by step from your terminal to Google's server and back? Be as detailed as you can.
+
+*local preparation and name resolution
+before any data leaving the machine curl must translate the humen readable web address to an IP address. So it checks the DNS record as previously explained and find the google's server's ip address.
+*estabilishing connection
+now the curl has the target ip address it must establish a reliable connection using the transport layer. since url uses https it targets the port 443(HTTPs). Then it makes the three way handshake(TCP handshake) with the google's server and create a connection.
+*Securing the connection
+This is called as TLS handshake(Transport layer security).Because the request is encrypted curl and google's server must negotiate encryption keys before transmitting any application data.
+-client hello: first curl sends a client hello message listing the TLS versions and cryptographic algorithms it supports.
+-Server hello and certification: google replies with a server hello by selecting best algorithm and its SSL/TLS digital certificate.
+-verification: curl verifies google's certifications against local OS trust store to ensure it is authentic and hasnt expired
+-key exchange: Both sides exchange cryptographic parameters to generate a shared symmetric session key. from this moment on all the traffic transfered between the device and the google's server is encrypted.
+*The application request
+with the connection is established and secured now the actual data can be transferred.curl formats a standard palin text HTTP request.The TLS layer ancrypts this text using shared key. TCP layer breaks it into data fragments. IP layer wraps them in packets and then sends over the connection link(physical wire or wifi). Then those packets travel through your modem,ISP,magor internet backbones and autonomous sytems(BGP routing) until they arrive at google's data center.Then the googles load balancers recieve the packets and route them into an internal web server. This server decrypt the payload, reads the HTTP request and process the response.
+*response
+google's server encrypts the HTTP response using the session key(shared key) go through the same layer processes and routes the packets back across the internet to your machine.Then your OS ressembles the incoming network packets, TLS layer decypts them and curt prints the response on to the terminal.Once the data transmission is completed your machine and google's server exchange TCP packets with FIN flag(FINISH) and the gracefully close the connection.
+

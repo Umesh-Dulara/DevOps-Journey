@@ -1,0 +1,44 @@
+1. What does pwd stand for and what does it do?
+
+Print working directory. It simply print the current directory you are working on to the terminal.
+
+2. What lives in /etc? Give 3 real examples of files there.
+
+configuration file and subdirectories. ect originally stand for etcetera but in modern systems it stand for editable text configurations. you can find user and security data, network configurations, system startup & services, application configurations inside it.
+*passwd
+*group
+*systemd
+
+3. What is /tmp and what happens to it on reboot?
+
+tmp is the directory that holds temporary files that created by operating system and running applications such as cache files, session data. when rebooted the temporary file inside it get wiped out.
+
+4. What is the difference between /bin and /usr/bin?
+
+bin stands for binaries. /bin contain essential command binaries requires during the early boot process mode or emergency system repairs before /urs file system is mounted.(ex. ls,cp,cat...) /usr stand for unix sistem resources and contains non-essential command binaries,tools and user applications.(ex. git,python,gcc,scrcpy...) 
+
+Intermediate
+
+5. What is /proc? Is it a real directory with real files?
+
+/proc is a virtual file system in Unix operating systems. It act as a live, real time control and information interface to the kernal and running processes. And no it is not physically stores file system. It is a virtual file system.
+
+6. What does cat /proc/uptime output and what do the two numbers mean? 
+
+The output shows the how long system has been operating since the last boot. The first numbers shows the nummber of seconds that system has been continuously operating since last bootup including suspended time. second number shows the number of seconds that cpu has been idle. 
+
+7. What is the difference between /home and /root? 
+
+/home is a subdirectory of /root./home holds the personal files that belongs to users and /root act as a private /home directory for superuser(admin)
+
+8. Why does /var/log exist separately from everything else?
+
+the /log exist seperately to isolate system logs from operational files, prevent system crashes, protect critical data and improve performence
+
+9. Why is everything on Linux represented as a file — even hardware devices? 
+
+Because when everything is a file, even the hardware itself  the operating system doesnt need different methods or functions to communicate with them. It only need 4 operations. Open, Read, Write, Close. When everything is file you can use standers commands to inspect them or manupulate them.
+
+10. Where would you find the config file for a program like nginx or ssh?
+
+/usr/bin

@@ -1,0 +1,113 @@
+Q1. What is the difference between a shell variable and an environment variable? How do you promote a shell variable to an environment variable? Give an example.
+
+shell variable can use in current shell only but enviorenment varibles can used in current shell and its' all child processes.shell variables are not inherited by scripts or programs launched from that shel while env variables are inherited by any script,sub shell or program launched from that shell.
+shell variables - ephemeral data, loop counters, temporary script logic
+env varibles - system wide settings, user paths, API keys, software configs
+
+
+Q2. What are the rules for naming a variable in bash? Which of the following are valid variable names, and why?
+
+1_name    _name    MY-VAR    myVar    MY_VAR    123
+
+*only letters,numbers and underscores are allowed
+*varible must start with a letter or underscore
+*varibles are case sensitive
+*cannot use reserved commands or words as varibles
+
+_name,MY_VAR,myVar are the ony ones follows that rules
+
+Q3. Explain the difference between these two assignments and what each prints:
+
+bash
+
+
+greeting="Hello World"
+echo $greeting
+echo "$greeting"
+echo '$greeting'
+
+first one declare a varible as greeting and sets it's to the "Hello World" string and prints nothing
+second line prints the value of greetings varibles. we use $ to call a variable. But because its unquated it undergoes word splitting.with the echo command it doesnt break the layout.But if you pass $greeting to a cammand that expects a single file name (like ls or cd) it will fail because it looks like two seperated file names.
+This does the pretty much the same but because its double quated it tells bash to keep the output as a sing block of text protecting the space between words.
+In third one single quate acts as a shield.they turn off all special shell processing treating $ as text rather than a variable trigger. in this case single quates simply tells bash to echo whatever inside the quates.
+ greeting="Hello World"
+echo $greeting
+Hello World
+
+greeting="Hello World"
+echo "$greeting"
+Hello World
+
+greeting="Hello World"
+echo '$greeting'
+$greeting
+
+
+Q4. What is command substitution? Write it in both the backtick style and the modern $() style. When would you prefer one over the other?
+
+command substitution is a shell feature that runs a command and replaces the command expression itself with its standard output.
+day=`date`
+day=$(date)
+you should always use the modern substitution unless you working witha very old script or unix system that doesnt support POSIX standard.
+
+Q5. What does the read command do? Write a small script snippet that:
+
+it takes a line of input from standard input or a file and assigns it to one or more variables.
+
+Prompts the user with the message "Enter your name: "
+Reads their input into a variable called username
+Prints "Hello, <username>!"
+
+name=input
+echo "Enter your name : "
+read input
+echo "Hello, $input"
+
+Q6. What is the purpose of read -p, read -s, and read -t? Give a use case for each.
+
+-r - raw mode.it prevents backslashes from acting as escape characters - read -r input
+-p - propmt.prints a custom message before waiting for the input without needing separate echo - read -r -p "Enter your name : " name
+-t - timeout.sets a time limit in seconds.if the user doesnt respond in time the command cancels and script move on. read -r -t 60 -p "Enter the OTP : " OTP
+
+Q7. What are special/positional variables in bash? Explain what each of these means:
+
+$0 - the name of the script or command
+$1   $2  - the first to ninth argument passed to the script 
+$@ - all positional parameters trated as separate individual words or arguments  
+$* - all positional parameters trated as a single,combined string.  
+$# - total number or positional parameters passed  
+$? - exit status of last executed command.  
+$$ - The process id of the current shell script
+
+they are built in variables that holds command line arguments and runtime information passed to  script.
+
+
+
+Q8. What is the difference between $@ and $* when they are quoted ("$@" vs "$*")? Why does this matter when arguments contain spaces?
+
+"$@" preserves each argument as a distinct quated string.
+"$*" merges each argument into one single string.
+
+"$@" prserves the original argument as they were passed and "$*" merges all the arguments into one string.If you use them without quotes shell splits the aruguments by spaces intead of arguments itself.
+
+Q9. What is variable scope in bash? If you define a variable inside a function, is it accessible outside? How do you fix that if needed — and how do you make it truly local?
+
+variable scope is the region or context in a computer program where a specific variable is visible,accessible and can be used.Once execution leaves that region the variable can no longer be accessed and memory is released.
+No you can only access it inside that specific function.You have to make it a global variable. It means you have to declare the varible outside that funcion or any other functions.If you wanna make it truely local you need to declare that varible inside the specific function,method or code block that you wanna use.
+
+variable scope types
+
+*Local variable - variables declared inside a specific function,method or code block.they can only be used inside exact function or block and are destroyed after execution.
+*Global variable - variables declaered outside of any function or block(usually at the top of the file). They are accessible from anywhere in that program
+*Block scope - variables declared inside curly brackets or control structures(like loops or if statements) using keywords like let or const. Their use is limited to that code block.
+Function scope - In languages like javascript or python variables declared inside a function body are bound to the entire function regardless of inner block boundaries.
+
+Q10. (Applied) Write a script called greet_user.sh that:
+
+
+
+Accepts a name as a command-line argument (positional, $1)
+If no argument is given, prompts the user to enter their name using read
+Prints "Hello, <name>! Today is <current date>."
+Exits with code 0 on success
+ answre is in /home/umesh-dulara/Desktop/devops-journey/phase1-linux/day8.sh

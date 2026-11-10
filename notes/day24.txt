@@ -1,0 +1,47 @@
+Q1. You run docker pull nginx twice. The second pull finishes instantly. Why?
+
+when you run the command for the first time docker checks local cache first. If the image or layers of it is missing or outdated it downloads image layer by layer.So next time you run the command image already exist so no need for pulling.
+
+Q2. You run docker run nginx three times. docker images still shows only one nginx entry. How can multiple containers exist from a single image without duplicating it?
+
+Because docker run does not create a new image.It only create a new container out of the image, with a unique name and id if not name is mentioned.
+
+Q3. You run docker run -d -p 8080:80 nginx and it works. A colleague runs docker run -d -p 8080:80 nginx on the same machine — it fails. But changing to -p 9090:80 works. Why?
+
+Because his port 8080 could be already in use in host machine.
+
+Q4. You docker exec into a running container and edit a file. You docker stop then docker start it — the edit survives. You docker rm it and docker run a new one — the edit is gone. Why the difference?
+
+Because you edit the running container not the image.So that configuration only survive inside the container.When you run a new container that edit is gone.With rm that container is also gone.
+
+Q5. You run docker run -d nginx with no -p flag. The container is running, nginx is listening inside. But curl localhost:80 on the host gets "connection refused." Why?
+
+By default containers does not expose their network ports to outside of their network.Since you havent map a port to the container there is nothing listening on port 80.So the host machine does not know where to send the traffic.So host reject the request and send a connection refused error.So you get a connection refuced error.
+
+Q6. Your container crashed and shows "Exited" in docker ps -a. You need to know what went wrong. What's your first move, and why does it still work on a dead container?
+
+first you can check the exit status (Exited (0) 15 hours ago) of the conatiner with docker ps -a.So if the exit code is none zero you know something went wrong inside the container.Then you can check the logs with docker logs <container ID> or check the containers meta data with docker inspect <container ID>.If the program inside the container is poorly written logs could not be much helpful.You can commit the dead container into temporary image and launch a new container to poke around and findout inside the container.This works because docker keeps file state and log files of a container on the host machine even the container is dead.
+
+Q7. docker stats shows a container using 5MB of RAM. docker images shows its image at 187MB. Explain the gap.
+
+The gap is the differnce between RAM and storage.Images does not use RAM.It just sits on your hard drive.
+
+Q8. You get a container's internal IP via docker inspect — it's 172.17.0.2. You try reaching it from another machine on your LAN. It fails. Using what you know from Day 5 networking — why?
+
+Because your LAN routers has no recode of that IP.The host machine act as a router to the container.So the default gateway of the container is the host.So the LAN router drops the packets without reaching to the host.So you need to use host ip with the specific port that mapped to the container.(curl http://192.168.1.1:8080). Container use this IPs to communicate with other containers inside the virtual network.
+
+Q9. What's wrong with this?
+
+bash
+
+
+docker stop my-nginx - this stops my-nginx container.
+docker rmi nginx - this deletes the nginx image.But there is a stpped container.docker wont allow you to delete a image if there are containers build from it.(stopped or exited).So this command will fail with a error.
+
+
+
+Q10. Write a script that proves container isolation is per-instance — two containers from the same image should not share filesystem changes. Clean up everything when done.
+
+/Desktop/devops-journey/phase2-docker/instance.sh
+
+

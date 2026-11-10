@@ -1,0 +1,53 @@
+
+1. What do the letters r, w, x mean in file permissions?
+
+r-read
+w-write
+x-execute
+
+2. Look at this output: -rwxr-xr-- — break it down. Who can do what?
+
+owner can read,write and execute the file
+the group own the file can read and execute the file
+other users can only read the file
+
+3. What is the difference between the owner, group, and others in Linux permissions?
+
+owner is the user who created or been assigned to that specific file.they have the highest level of control over the file. group is the list of users that has the same level of control over the assigned file. others are every other user in the system that isnt the owner nor a member of the group that file is assiged.
+
+4. What does chmod 755 file.sh do? What about chmod 644 file.txt?
+
+it modifies the permission values of the file.sh the owner of the file can read,write and execute. group and other users can read and execute the file. second command changes permissions as owner can read and write the file. group and others can only read the file.
+
+Intermediate
+
+5. Why do shell scripts need the x (execute) permission to run? What happens if it's missing?
+
+By default unix systems prevents new files from being executable for safety. when you try the execute ./file.sh system first checks the file permissions. Since new files doesnt have x permission you have to modify the permission value by chmod +x file.sh. if you try to execute the file without it system throws a permission denied error.
+
+6. What is sudo and why do some operations require it?
+
+sudo stands for super user do. unix systems designed with strict boundary rules. If you are doing an operation that has system level impact you need sudo permission. such as updating the system , installing new software, modify system configuration files or access restricted log or data.
+
+7. Run ls -la /etc/passwd and ls -la /etc/shadow in your terminal. What do you notice about the permissions? Why is shadow more restricted?
+
+both has same permissions for owner and the group but other users cant do anything to the shadow. /etc/shadow contains the sensitive, encrypted password hashes and account expiration rules whlie /etc/passwd contains general identity info. such as usernames,user ids,group ids, home directories and default login shells. if unouthorized person could read the /shadow they can use brute force or dictionary attacks to crack the real passwords.
+
+8. What does chown do? Write the syntax to change a file's owner.
+
+chown change the ownership of a file. 
+sudo chown jane file.txt
+
+sudo chown owner:group file.txt      # change both owner and group
+sudo chown jane:developers file.txt  # jane owns it, developers group
+sudo chown -R jane folder/           # recursive — all files inside too
+
+Hands-on — do this in your terminal
+
+9. Create a file called secret.txt, write something in it, then set its permissions so that only you can read and write it — no one else can do anything. What chmod command did you use?
+
+chmod 600 secret.txt
+
+10. What is umask? Run umask in your terminal — what does your system's default value mean?
+
+umask is a built in shell command and system setting that determine the default file and directory permissions whenever a new file or directory is created.when a new file or directory is created it's final permission is determines by subtracting the umask value from the base default. For a directory the base default is 777 and for file its 666. most common umask is 022. so when a new directory is made its final permission value is 755 and for a file it 644. My systems default value is 0002. Its represented in 4 digits. The first digit is for the special permissions. so when is create a new directory the permission value would be 775 and for file it word be 664.

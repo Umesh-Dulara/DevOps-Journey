@@ -1,0 +1,86 @@
+Q1. SSH uses a key pair — a private key and a public key. You give the public key to servers. Why can't someone who has your public key use it to log in as you? What's the actual role of the private key during authentication?
+
+well you have to establish a connection with the server before you can access it.To establish this connection ssh uses challange-response handshake.first the local machine initate c connection with the server and sends a knock.This tells the server to which public key you need to use.then comes the challange.the server looks at its authorized keys which has your public key then it creates a random cryptographic puzzle (The challange) that can only decrypted by your private key and send to the local machine.Then the local machine uses its private key to solve the puzzle and signs the the response to the server.Then server verifies the signature using the public key.If it matches a secure connection is established.So even though someone has the public key they cant decrypt the challange.Thats why 
+
+Q2. The command ssh-keygen -t ed25519 creates two files. One is id_ed25519 and the other is id_ed25519.pub. You accidentally chmod 777 id_ed25519. Now ssh user@server refuses to connect. Why does SSH care about your private key's permissions — what attack is it protecting you from?
+
+when you set permission 777 to your private key any user in the system can access the private key.It no longer be a private key if anyone can access it.ssh care about this because it cant gurantee that your identity hasnt been compromised.It refuses to establish a connection to protect both you and the server.
+This protect you against local privilage escalation attack which directly leads to an identity theft or account takeover attack.
+
+Q3. You run ssh-keygen and it asks for a passphrase. You skip it by pressing Enter. Compare a key with a passphrase to one without — what's the trade-off? Think about what happens if someone steals your laptop.
+
+when you use a passphrase it act as password for your physical key file.With the passphrase ssh encrypt the private key before storing it in your local machine.Without the passphrase the key is stored in plain text.Anyone who has the physical access to your machine or harddrive can read that ssh key.
+
+Q4. You set up ~/.ssh/config like this:
+
+
+
+Host prod
+    HostName 192.168.1.50
+    User deploy
+    IdentityFile ~/.ssh/id_ed25519
+Now ssh prod works. But a colleague copies your config file to their machine and runs ssh prod — it fails. Why? What in this config is machine-specific?
+
+It fails because the your private key only in your system.But if that collegue happen to have the ssh access to the server and their private key is also in that same location with the same name this would work.But he will log in to the server with their account.
+
+Q5. You run scp myfile.txt user@server:/tmp/ and it works. Then you try scp -r myfolder/ user@server:/tmp/ and it also works. Under the hood, scp is using SSH. So why didn't you need to type a password for either command, assuming you'd already set up key-based auth? And what would break if the remote server's sshd_config had PasswordAuthentication yes but PubkeyAuthentication no?
+
+You dont need to enter a password because ssh already established a connection based on key pairs.SSH uses authentication based on their proirity.Public key has the highest priority and password has the lowest priority.when turning off pubkeyauthentication server never looks at your key even though its presented.After setting passwordauthentication yes whle key turned off the authentication only rely on password.This will make the server vulnarable to brute force and dictionary attacks.
+
+Q6. Your ~/.ssh/ directory has these permissions: drwxrwxrwx. Everything inside it has chmod 600. SSH still refuses your key. You already know from Q2 that SSH checks the key file — but what else does it check, and why?
+
+Local directory and configurations - ssh checks the permission of your .ssh directory and config files.If the directory is writable to anyone else but you they can inject malicious config files.If the config file is writable anyone who has the access can they can edit your config files to redirect your traffic to another server.
+
+Remote servers identity - ssh lools up the servers public host key inside your local .ssh/known_hosts file.If thhe host key has changed since the last connection ssh refuses to connect.Because the server could be an attacker impersonating as your server.
+
+Server side file permissions - when your key reached to the server ssh daemon validated the destination enviorenment.If the permission are loose server ignores the key and fallback to password auth.The remote home directory, remote .ssh forlder and authorized keys file must not be world writable.If these are world writable anyone can edit the .ssh directory and configuration files inside it.
+
+Server configurations - The remote server checks your login attempt against its global security policies.AllowUsers / DenyUsers are the servers whitelist and blacklist.If your username isnt explicitly allowed you are blocked.PermitRootLogin checks if you are trying to login directly as root.If this is set to yes you can connect but almost always its set to no.The client and server negotiate encryption algorithms and key exchange methods to find a method they both support.If nothing matches connection fails.
+
+Network and Firewall safeguards - Server checks your local IP address is explicitly allowed or blocked.If your IP address previously triggered multiple failed login attempts the servers firewall drop your connection before ssh evaluate keys.This happens if Fail2ban or IP rate limiting is configured in firewall. 
+
+Q7. Compare scp and rsync for copying a 10 GB folder to a remote server. The transfer fails at 7 GB and you restart it. What happens with each tool? Why is rsync called "efficient sync" — what does it actually do differently at the file level?
+
+Well they both work under ssh.When copying a 10GB file scp is slower than rsync.Because rsync uses compression and avoid duplicates.If you restart the copy scp will start from the begining and will overwrite previous 7GB.But rsync can resume from where it left off using --append.In file level scp just copy the file content.Its metadata is completely ignored while rsync copy symlinks,owenership and timestamps perfectly.
+rsync is called efficient sync because it breaks the file down into chunks, compares them and only transmits the exact bytes that have changed over the network instead of copying a file from scratch.
+
+Q8. Write a short script that:
+
+Takes a list of server IPs as arguments
+SSHs into each one and runs df -h | grep '/$' (root partition disk usage)
+Prints the result with the server IP next to it
+Use what you know from Day 10 (loops) and Day 11 (functions). You don't need a real server — just write the logic.
+
+/Desktop/devops-journey/phase1-linux/server_health.sh
+
+Q9. You see this in /etc/ssh/sshd_config:
+
+
+
+PermitRootLogin yes
+PasswordAuthentication yes
+What are the security risks of each setting being yes? If you were hardening this server, what would you change them to — and what must you do before disabling password auth to avoid locking yourself out?
+
+PermitRootLogin allow any user to log in as root directly.With PassowrdAuthentication yes, if the key validation failed ssh will fallback into password auth.With both these lines enabled an attacker can launch a bruteforce or dictionary attack to gain the access to the server and they also can login as root compromising ultimate power over the system.
+PermitRootLogin prohibit-password
+PubKeyAuthentication yes
+PasswordAuthentication no
+
+I should generate a key pair and store public key in /.ssh/authorized_keys before disabling password authentication.
+
+Q10. You run ssh user@server and get this warning:
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+Most people google "how to fix this" and blindly remove the old key from known_hosts. But what is SSH actually telling you? In what scenario is this warning protecting you from a real attack vs. just a harmless server rebuild?
+
+when you log into a remote server for the first time a cryptographic fingerprint is stored in both server and the local machine.The next time you connect to the server ssh compare the local fingerprint against servers fingerprint.If they dont match ssh throw this error and refuce to connect.There are multiple ways that could change this fingerprint.
+Reinstalled OS - If the person/service who manage the server rebuilt or reinstall the server it will automatically generate new host keys.
+IP address reuse - Imagine you launce an instance from a cloud provider and ssh into that server and do whatever you do and terminate the instance.By doing this your local machine stores a fingerprint that belongs to the server at that IP address.Then cloud provider mark as that IP address is available to use.Then someone else launch an instance and provider assign that ip address to that machine.They finish their work and terminate it.Then you launch a instance again and provider assign that ip address again to your server.When you ssh into that server your local machine already has a fingerprint on that ip address.But the servers fingerprint has changed because it was rebuilt.So ssh throw this error.
+Upgraded SSH - If the server upgraded its OpenSSH daemon it will change its default host key algorithm.
+
+If you are not in none of above situations its protecting you agains actual threat or attack.If you are using public wifi this could be a real attack.If the server has been running for long time and suddenly this error pop up this could be an attack.If the server uses a static IP address this error can protect you from an attack.The server has not upgraded its SSHd this could protect you from an attack
+

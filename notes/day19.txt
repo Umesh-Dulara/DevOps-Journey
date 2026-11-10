@@ -1,0 +1,113 @@
+Q1. You open a terminal and run MY_VAR="hello" then open a second terminal and run echo $MY_VAR — it prints nothing. You go back to the first terminal, run export MY_VAR, then try the second terminal again — still nothing. Why didn't export fix it?
+
+An exported varible only flows strictly downward on its family tree.Which means only the child processes of that shell can access that variable.But when you open an another shell
+its not a child process of the previous shell.Its an independent shell parrellel in that family tree.so it cant access that variable because the variable exist on memory block of the shell that you used to declair that variable.
+
+Q2. A junior dev adds export PATH="/opt/mytools" to their .bashrc. After restarting the terminal, ls, cat, and every basic command stops working. They didn't delete anything. What happened, and what should they have written instead?
+
+when you add path like this it erase the system's map of where programs live instead of adding a new location to it.In linux PATH variable is a list of folder paths seperated by colons.when you type a command like ls, the system checks those folders one by one to find ls program.when you add that line it tells system to forget everything else from now on the only folder exist on this computer for running programs is /opt/mytools.since other programs lives in different folders system cant find them.
+fix
+export PATH="/opt/mytools:$PATH"
+It tells system to look inside that folder first and then check other paths in PATH variable. 
+
+Q3. You run env and printenv — both show environment variables. You set LOCAL_THING="test" (no export) and run both again. One of them won't show LOCAL_THING — but neither will. Why can't you see a shell variable with either of these commands, and what's the fundamental difference between a shell variable and an environment variable?
+
+because its a shell variable.env and printenv only shows enviorenment variables.
+shell variables are acsessible only in current shell.env vars are accessible to the current shell and any process runs under that shell.shell vars cant be inherited by child processes while env vars can be inherited by any sub process.
+
+Q4. You write a script deploy.sh that reads $DB_PASSWORD from the environment. You run export DB_PASSWORD="s3cret" && ./deploy.sh and it works. But when you later run ./deploy.sh in a new terminal, $DB_PASSWORD is empty. Your teammate says "just put it in .bashrc". What's the security problem with that advice, and what's a safer alternative?
+
+if you add password into .bashrc any process can access it.Its like write your wifi password on the door.Debug logs, enviorenment dumps or simple history search tool can accidentally expose that string.If you backup your dotfiles to a public github repo your password is instantly compromised.If a compromised third party package runs a malicious script in your terminal it can easily read your env vars and expose your credentials.
+
+you can use seperate .env file with .gitigore.This keeps your env variables seperated from system env vars.
+if you dont need to store your password anywhere you can use one time inline execution. (DB_PASSWORD="S3CRET" ./deploy.sh)
+
+Q5. You run echo $PATH | tr ':' '\n' and see /usr/local/bin appears twice. Is this harmful? What actually happens when bash resolves a command, and why does the order of entries in PATH matter more than duplicates?
+
+Normally its not harmfull.
+The shell goes through a strict multi step command resolution pipeline to figure out exactly what code it needs to execute.
+
+1.Tokenization and parsing
+before looking up the command bash breaks your input line into tokens.It handles qoutes, expand variables and sets up any input output redirections.
+
+2.Alias expansion
+If your input is a single word without an explicit path, bash checks its internal memory of aliases.If it finds a match it replaces your input text with the alias definition and start resolution loop again.
+
+3.Keywords
+Bash checks if the word is a structural shell keyword.These are built in syntax elements used for programming logic, such as if,then,for,while...
+
+4.Shell functions
+Next bash looks at the functions loaded in its current memory env.If you have a custom function as deploy, it will run that code block
+
+5.Shell built ins
+If no function exist bash checks its list of built in commands.These are commands compiled directly into the bash binary itself such as cd,pwd.
+
+6.External utilities($PATH lookup & hashing)
+If the input isnt none of above bash assumes it must be a standalone file program sitting somewhere on the hard drive.Bash then first check its hash table.To avoid scanning everytime you type a command bash keeps an internal cache of where it previously found programs.If the program isnt there bash checks $PATH variable from left to right, opening each folder to see if that program exist on them.If it finds the program bash execute it it using execve system call.If nothing was found it stops and print command not found.
+
+order matter because bash stops on the moment it find a match.if you have two versions of the same program in different paths bash only execute the version that it finds first.Th
+e other version is completely ignored.
+
+
+Q6. You write this in a script:
+
+bash
+
+
+#!/bin/bash
+BACKUP_DIR="/tmp/backups"
+mkdir -p $BACKUP_DIR
+tar czf $BACKUP_DIR/archive.tar.gz /var/log
+A senior engineer says "never hardcode paths — use environment variables." But another says "never trust environment variables for critical paths." Who's right, and when would each approach burn you? Think about what you learned on Day 13 about set -u.
+
+well both are partially correct.Because it depends on some facts.
+if you hardcode the path and use the script on a different file system that could break the script.This makes a portabillity limitation.If you use env var for and someone or something alter that variable that could lead to a security issue.You should always set -euo pipefail to mitigate this issues.
+
+Q7. Find the bug:
+
+bash
+
+
+#!/bin/bash
+set -euo pipefail
+DB_HOST="localhost"
+DB_PORT=5432
+run_query() {
+    local DB_HOST="production-db.internal"
+    echo "Connecting to $DB_HOST:$DB_PORT"
+}
+run_query
+echo "Logging connection to $DB_HOST:$DB_PORT"
+The developer expects both lines to print production-db.internal. What actually prints, and why? Connect this to what you learned about scoping on Day 11.
+
+first echo prints production-db.internal next one print local host.Because DB_HOST is declaired as a local variable inside the function so its overwritten by the function and deleted from the memory the moment function finished its execution.so next echo prints the local host because its not overwritten.If the dev need to print both lines as production they must make the DB_HOST var inside function global.
+
+Q8. Write a script called env_guard.sh that:
+
+Takes a list of required environment variable names as arguments (e.g., ./env_guard.sh DB_HOST DB_PORT API_KEY)
+Checks if each one is set and non-empty
+Prints which ones are missing
+Exits with failure if any are missing, success if all present
+Use what you know from Day 11 (functions) and Day 13 (error handling)
+
+/home/umesh-dulara/Desktop/devops-journey/phase1-linux/env_guard.sh
+
+Q9. You run source ~/.bashrc and it works. You try . ~/.bashrc and it also works. But you try ./bashrc from inside ~ and it fails — even with execute permission. Why does source/. behave fundamentally differently from executing a file, and what does this tell you about how environment variables propagate between processes?
+
+the source command and '.' are identical shell bulit ins.when you run source ~/.bashrc or . ~/.bashrc it opens the bashrc file and reads the commands directly into your current active shell session instead of forking a child process to execute .bashrc.Because its inside the parent process any available variables or aliases defined in .bashrc are applied directly into your shell.
+when you type a path to execute a script directly like ./.bashrc it tells bash to fork a new child process to run that file.However .bashrc is not a executable script.It doesnt have a shebang.Since there is no shebang system doesnt know which interpreter to use.Even if current shell guess and execute the file its been executed in a subshell. So your current shell has no information about that process.like what variables were declaired.So your current shell has no access to that variables or aliases.
+
+this tell you env vars only propagate down stream.So parent process has no access to its child processes env vars.
+
+Q10. A script starts with:
+
+bash
+
+
+#!/usr/bin/env bash
+instead of #!/bin/bash. Most DevOps scripts in the wild use the env version. Why? What problem does it solve that the direct path doesn't — and when could the env version actually be worse?
+
+when you hardcode shebang path you assume bash is always located at that path.But #!/usr/bin/env bash is dynamic.It ask the env utility to lookup bash inside your current enviorenments $PATH.This makes the script portable between differnt filesystems.
+This method entirly rely on $PATH variable.If that variable itself is broken the execution fails.Like the scenario on q2.This could also go wrong if the env location is different.Some file systems store env in differnt paths.Since that file isnt located where its mentioned kernal cant find it. 
+
+

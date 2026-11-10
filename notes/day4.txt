@@ -1,0 +1,75 @@
+Beginner
+
+1. Run cat /etc/passwd and look at one line. What do the 7 colon-separated fields mean? Pick any real user line and explain each field.
+	
+root:x:0:0:root:/root:/bin/bash
+username:password:UID:GroupID:GECOS:HomeDirectory:shell
+
+username - the login name for the user
+password - usually shows with a 'x' indicating that the actual password is safely stored in /etc/shadow
+UID - User ID numbers. 0 is root, 1-99 are predefined,100-999 are system accounts and 1000+ are fore regular users
+GID - the primary group id from /etc/group
+GECOS - optional field for full name, room number or contact info
+Home directory - The absolute path for users' home directory
+Login shell - path to the users' default command line shell.(/bin/bash) 
+
+2. What is the difference between a regular user, a system user, and the root user? How can you tell them apart in /etc/passwd?
+
+regular user - is for human users for regular tasks. The cant modify system files or install software or chanege permissions without sudo.
+system user - is for non human users. they are automatically created by the OS or software packages to run background processes, daemons and applications.
+root user - is the superuser account. It holds the ultimate power over entire system. root user can modify system files, configurations, manage all hardware and services, create/delete accounts,change permissions.   
+
+
+3. What does the x mean in the password field of /etc/passwd? Where is the actual password stored?
+
+x means the password is saved in /etc/shadow with hashes and encryption.
+
+
+4. Run id in your terminal. What does each part of the output mean — uid, gid, and groups?
+
+uid - current users user id with username
+gid - current users primary group id with group name
+groups - all the groups that current user belongs to with group ids and group names
+
+
+
+Intermediate
+
+5. What is the purpose of the /etc/group file? Run cat /etc/group and explain the format of one line.
+
+it stores info about local user groups and defines which user belong to which group.
+adm:x:4:syslog,umesh-dulara
+Group name:password field:group id:user list
+
+group name - human readable name of the group
+password - indicate with x for the same reason above.
+group id - the group id
+user list - list of user names that belongs to the group as secondary members. primary members are defined in /etc/passwd
+
+6. What is the sudo group (sometimes called wheel on other distros)? How does being in that group give you elevated privileges?
+
+sudo group is the user group that are authorized to run admin commands with sudo privilages. 
+
+7. Run who and w in your terminal. What is the difference between what they show?
+
+w is an extended version of who
+who shows the username, terminal type, login date and time and remote ip address or host if connected via network.
+w start with a header that shows current time,system uptime, number of users and system load averages. below that it lists each user with columns for user name, terminal type,from(remote host),Login@,IDLE(inactive time), JCPU(joint cpu time),PCPU(process cpu time) and WHAT(the exact command or process currently running).
+
+8. What does su - do and how is it different from just su? And how is su - d,ifferent from sudo -i?
+
+sudo is superuser do and su means switch user. sudo runs a single command with temporary root or elevated privilages using users own password(if the user is in sudo group). But su completely changes users' account (default is root) and it requires targeted user's password.
+Both are for the same goal but how they authenticate and handle securty is completly different. su requires actual root user's passwor but sudo -i only require current users password.su has more security risk because you have to share the root password with anyone who need full access and once log into root shell individual actions are hard to trace back to original user. However with sudo -i it initiate the shell is logged to /var/log/auth.log with the users' username.
+
+
+Think about it
+
+9. In a real company server, why would you never log in directly as root? What is the safer alternative and why?
+
+the safer way is to log in as a regular user and elevate the previlages with sudo command. and for why the answer is in the previous answer.
+
+10. What is the nobody user in Linux? Run grep nobody /etc/passwd — why does this user exist and what is it used for?
+
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+nobody user is a default, pseudo user account that has the absolute minimum previlages possible in the system. It owns no files, belongs to no privileged groups and is designed to perform tasks that require no special permissions.
+

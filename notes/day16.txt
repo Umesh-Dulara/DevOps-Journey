@@ -1,0 +1,78 @@
+Q1. You schedule a cron job as */5 * * * * bash ~/scripts/cleanup.sh. The script works perfectly when you run it manually, but the cron job silently does nothing. What's the most likely category of problem, and how would you start debugging it?
+
+Its a file path problem.~ is a shell shorcut for specific users home directory.this will exapnd into bash home/username/scripts/cleanup.sh when you manually run this in an interactive shell.But cron uses /bin/sh (standard POSIX shell) so it will read ~ as just a directory name in path and throw an error no such file or directory.
+You can start debugging by checking syslog.(grep CRON /var/log/syslog) but you will have to search through every other log.The best practice is to always log cron jobs output to a custom file.Because cron runs in background it wont print any error messages to a terminal.You can do this when sheduling the cron job in first place by */5 * * * * bash /home/username/cleanup.sh >> /home/username/cleanup_cron_log.log 2>&1 
+
+Q2. What's the difference between editing your crontab with crontab -e and manually placing a file in /etc/cron.d/? When would you choose one over the other?
+
+crontab -e is designed for individual users managing their own task./etc/cron.d/ is a system directory is used for system wide automations.Its used by system admins and software packages.there a many differences between them.
+*Syntax 
+crontab -e = 5 time fields + command
+cron.d = 5 time fields + username + command
+
+*permission
+crontab -e = any user can create,edit or delete their own jobs
+cron.d = requires root access to create or edit files
+
+*validation
+crontab -e = checks for syntax error upon saving
+cron.d = No syntax checking because you are just creating or placing a file inside a directory.It will fail if there are any typos.
+
+*storage location
+crontab -e = /var/spool/cron/crontabs/
+cron.d = /etc/cron.d/
+
+crontab is best for personal task automations.(backup files, manage log files, pull data from API)
+cron.d is best for production system building,server setups.(CI and CDs, IaS)
+
+Q3. You have this cron entry: 30 2 * * 1-5 /home/umesh-dulara/devops-journey/phase1-linux/health_check.sh. Describe exactly when this runs. Now — your script writes a log file using $(date +%Y%m%d_%H%M%S). If the system clock suddenly jumps forward by 2 hours due to an NTP sync, what happens to your scheduled job that night?
+
+this will run health check script 02:30 a.m. on every week day from monday to friday.
+the script wont run if the NTP sync skips 2 a.m. and run it next day at 2 a.m. with synced time.
+
+Q4. A junior admin runs crontab -r thinking it would remove a single entry. What actually happens, and why is this command dangerous? How would you protect against this mistake?
+
+-r flag will remove the entire crontab file.Thats why its dangerous.You can avoid this with crontab -e.It will open the crontab file in a editor you choose(vim,nano...).Then you simply edit that file to remove a specific job by commenting out that line or removing it from the file.
+
+Q5. Your cron job runs disk_monitor.sh every hour, but the log file it writes to never gets created. The script uses LOGFILE="$HOME/devops-journey/notes/disk_monitor.log". What's wrong, and what does cron's environment look like compared to your interactive shell?
+
+the error might be in the file path.because HOME is inside the script and it will correctly interpretted as /home/username.This variable even work at crontab itself because when cron triggers a script it automatically sets basic set of enviorenment variables.Including HOME, USER and SHELL.what could happen is there are other paths that doesnt have $PATH or full path.
+the shell env is interactive and cron isnt.
+shell uses modern,feature rich shell binaries (/bin/bash, /bin/zsh) while cron uses minimal POSIX binaries(/bin/sh)
+shell automatically loads configuration files but cron completely ignores them.
+In shell you can use both relative and absolute paths including shortcuts as ~.But cron only supports absolute paths.
+
+Q6. Compare these two cron schedules — which one is more resource-friendly and why?
+
+
+
+* * * * * /path/to/check_website.sh
+*/5 * * * * /path/to/check_website.sh
+Now, if check_website.sh takes 3 minutes to complete and you're using the every-minute schedule, what dangerous situation can arise?
+
+first one will run the script every minute.second one runs every 5 minute making it more resource friendly.
+if it takes 3 minutes to complete it will stack up instances of the same process, all competing for system resources.This will finally cause OOM by consuming CPU and RAM.
+
+Q7. You want your log_rotate.sh script (from Day 14) to run every Sunday at midnight. Write the cron entry. Now — what happens if the machine is powered off at midnight Sunday and boots up Monday morning? Does the missed job ever run?
+
+0 0 * * 0 bash /home/umesh-dulara/Desktop/devops-journey/phase1-linux/log_rotate.sh
+cron will skip the job and wait for nex sunday mid night to run the job.You should use anacron for this kind of jobs.it will run the skipped job as soon as in next boot up finished.
+
+Q8. Write a script called cron_guard.sh that wraps any command and ensures only one instance runs at a time. Hint: think about what you learned on Day 13 about trap and temporary files. How would lock files help here?
+
+/home/umesh-dulara/Desktop/devops-journey/phase1-linux/cron_guard.sh
+
+Q9. You see this in someone's crontab:
+
+0 */2 * * * root /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1
+There are two problems with this entry. Find them both.
+
+this entry is not valid in crontab -e.It only valid in cron.d or /etc/crontab.
+If the user try to place this inside they need root level access.
+
+Q10. Why does cron send email by default when a job produces output, and how do you suppress it? Now think deeper — in a production environment, would you want to suppress all output? What's a better approach than silencing everything?
+
+because by default both stdout and stderr are sent as outputs.Since you havent seperate them the mail service will sent any output that produced by the job.No if you suppress all output you have to check syslog to debug any error and you have to manually check weather anythis has gone wrong.
+best approach is sent only the stderr.
+
+0 0 * * 0 bash /home/umesh-dulara/Desktop/devops-journey/phase1-linux/cron_guard.sh 2> >(mail -s "Cron job alert !" umeshdulara@gmail.com)
