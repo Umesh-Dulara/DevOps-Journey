@@ -1,0 +1,91 @@
+Q1. You build an image locally tagged myapp:v2. You try docker push myapp:v2 and it fails. What's missing and why does Docker need it?
+
+First you need to login to the docker hub from your teminal session.
+You need to add your user name and the repo name.Docker hub stores images in name spaces that seperated by your username.when you push an image docker translate your command to docker.io/username/reponame:version.If dont provide the username and repo name docker does not know where to route your image.
+In this command user name is missing.So docker will translate this to docker.io/library/myapp:v2.Without the user name docker assume your image belong to docker hub official global library namespace.This namespace is stricty for official images such as ubuntu or nginx.Since you dont have permission to write that repo docker rejects the push with access denied error.
+
+Your tag missing the user name.Docker push only accespt one argument intead of push <source> <remote>.When you push with this name docker find your local image that tagged as myapp:v2 but docker cannot find the route to upload the image.If you use docker push username/myapp:v2 without tagging the image as username/myapp:v2 docker cannot find the local image but it knows the route.Which is the opposit of the previous scenario.
+
+Q2. Your team's docker-compose.yml uses image: postgres:latest in production. One morning, containers restart after a host reboot and the app breaks — nothing in your code changed. What likely happened, and how would you prevent this?
+
+With these details this could not happen.But if your yml file pull latest image on every run (--pull=always) your code could break.Because your code is configured to use the current version of postgres.The new image might use a completely different data directory format that will crash your database.
+Or your app could crash you manually do the database seeding instead of mounting volumes and use an init.sql file.
+
+You can prevent this  by mentioning exact version of postgres immage that your app need.(image: postgres:16.4)
+And the case is impersistant data use volumes and autamatic seeding. 
+
+Q3. You run docker tag myapp:v1 myuser/myapp:v1. Does this create a new image or consume extra disk space? What is a tag actually doing under the hood?
+
+No it does not consume extra space.It just create a pointer(alias) to the same image id in docker daemons metadata database.So you can use both names when interacting with the same image.This helps when you need to push your image to different destinations.As mentioned in the answer 1 push only accept one argument.So you cant push the image that you pushed to the docker hub to the github.You need different alias for different addresses for different destinations.
+
+Q4. A colleague pushes myuser/webapp:latest to Docker Hub, then later pushes myuser/webapp:latest again with completely different code. A production server runs docker pull myuser/webapp:latest and restarts. What's the danger here, and what tagging strategy avoids it?
+
+You are pushing different images with same name here.This will redirect the registry index pointer to the new image inside docker hub.So anyone pulling the myuser/webapp:latest will get the new image.The old image become untagged(dangling image).Unless you have the original image on your local machine or sha digest that image become unrecoverable after pushing new image.The production server will blindly pull the new image and start containers.If the new build crashes you cannot easily roll back to previous image.And if different servers pulling the :latest at different times will endup running different code under the exact same name tag.
+
+You should use immutable, uniqe tags for tagging your image.Othervise you have to use sha digest when you pulling.You can use sementic versioning, Git commit SHA/CI build IDs or SHA256 digest as tags.
+docker tag myuser/webapp:v1.0.0
+docker tag myuser/webapp:v1.0.1
+
+Q5. You have a CI pipeline that builds a Docker image on every commit. You want to be able to trace exactly which commit produced a running container. What tagging strategy would you use, and how would you find the source code for a container running in production?
+
+Git commit SHA or CI build ID tagging.Or combine both of them.Since you need to find the commit you can just use Git commit SHA.
+First ask git for short 7 character ID for your latest commit and store it in a varible.
+GIT_SHA=$(git rev-parse --short HEAD)
+then use it as a tag for your image.
+docker tag myuser/myapp:$GIT_SHA 
+Since this is in CI use
+docker build -t myuser/myapp:$GIT_SHA .
+docker push myuser/myapp:$GIT_SHA
+
+you can run docker ps on the server find the running containers and grab the image name of it.Since it include commit SHA you can copy it to git show <7 character ID>.It will show the exact code that changed on that commit with time stamp, commit message on that build.
+If you want to lacally analize the code you can export an zip archive of that commit.
+git archive --format=zip --output=snapshot.zip <7 character ID>
+
+Q6. You tagged an image with docker tag myapp:v3 myuser/myapp:v3 and pushed it. Later you realize you forgot to also push a latest tag. Without rebuilding, how do you push a latest tag that points to the same image?
+
+Since you have the image on your machine tag it again with latest tag. 
+docker tag myapp:v3 myuser/myapp:latest
+And push it back to the docker hub.Since your image layers are already in the docker hub and no layer has changed sha digest match on both sides.So it will create a new pointer in the registry that point to your old image.
+If you no longer have your original image locally you can pull it back(If you want a copy in your local machine) and tag it and push it back or tag it on the docker hub with
+docker buildx imagetools create -t myuser/myapp:latest myuser/myapp:v3
+this will create a new pointer with latest tag in your regitry
+
+Q7. Your company doesn't want images on public Docker Hub for security reasons. What are your options, and why might a company prefer a private registry over Docker Hub even for non-secret images?
+
+You can use any OCI compliant container registry either a hosted cloud service or a private server you run yourself.
+Developer friendly code registries - Github container registry, gitlab container registry
+Cloud provider registries - AWS elastic container registry (ECR), Google artifact registry, Azure container registry, Digital ocean container registry
+Self hosted registies - Harbor, docker registry, gitea/forgejo
+
+Companies prefer private registries because you can manage it on your rules such as custom firewall settings, network configurations.And for faster spin ups.You can place your use a server that sitting next your production server.So pulling an image takes less time.You can avoid rate limits.Public docker hub strictly limits how many images an IP can per hour.If your server auto scale during peak hours this can be a bottle neck.
+
+Q8. You run docker search nginx and see dozens of results. How do you distinguish official images from random user uploads? Why does this distinction matter in production?
+
+The official image returns a [OK] message under official column and has no user name prefix on the name column because its in docker.io/library.
+Because anyone can push an image under almost any name.So there could be malware, backdoors or outdated software in those images.And since its not the official image it could break your application on the production.The official images are regulary updated and recieve patches for new vulnerabilities.They are optimized and has reliable documentation.
+
+Q9. Find the bug: A developer writes this deployment script:
+
+bash
+
+
+docker build -t myapp .
+docker push myapp
+docker tag myapp myuser/myapp:$(git rev-parse --short HEAD)
+docker push myuser/myapp:$(git rev-parse --short HEAD)
+There are two problems — what are they?
+
+The first push has no user name so it will fail.
+When you are using git command directly push command.If anything was pushed to the github between tag and push the push command will fail.Because git rev-parse --short HEAD will return the first 7 characters of the hash.So push command will fail.
+
+
+Q10. Write a shell script called push_release.sh that takes an image name and a version number as arguments. The script should:
+
+Tag the image as yourusername/image:version
+Tag the same image as yourusername/image:latest
+Push both tags
+Print a confirmation with the full image names pushed
+Exit with an error message if either argument is missing
+
+/home/umesh-dulara/Desktop/devops-journey/phase2-docker/push&releas/push_release.sh
+
