@@ -1,0 +1,91 @@
+Q1. You build a Go app with a single-stage Dockerfile using FROM golang:1.21. The image is ~800MB but your binary is only 10MB. Where is the other 790MB coming from, and why is that a problem beyond just disk space?
+
+The other 790mb is comming from the system tools,libraries, compilers, dependencies that used to compile your source code.
+This is a problem because it will take more pull, push times; Expand attack surface.
+
+Think of like this.You want to run chrome.You download compiled crome executable, chrome source code, the exact IDE that used to create it, language interpreters, compilers, libraries and everything the developer used to build it.But you only need crome files and your operating system.Everything else become abondend junk files.
+
+Q2. In a multi-stage Dockerfile, you write COPY --from=builder /app/server . — but builder doesn't exist as a container on your system. How does Docker know what builder refers to?
+
+when docker reads your docker file it create an interconnected node chain(dependancy graph) that each connects to the next node that start from 0.Each node is one instruction line in your dockerfile.The instructions that start with FROM becomes the first node (node 0)of a chain.'As builder' is an alias(stage aliase) to a node that fall though the chain.Which means when docker reads the From golang:1.21. As builder docker creates an aliase to the first node in docker buildKit's temporary build graph.(this is created in that process' memory space.which means docker buildKit's memory space.)When docker read the next line the aliase's pointer move to the next node.This happens untill docker reads next FROM line.Which means the start of a new node chain.So now aliase is point to the last node of the first stage.Then docker read the next stage same as before chaining each node and creating build graph.while reading the file docker hits the copy --form=builder /app/server . builder aliase already has a pointer to the last node of the stage one.so now both chains are connected.After creating the graph built Kit start executing all the chains parellaly.Which means All FROM instructions are executed at the same time.But in the stage 2 in the copy node it has two parent nodes.So it wait for both nodes to finish their execution and copy the files.
+
+the builder act as a bridge between 2 chains.Docker knows what builder refers to because it was written as an aliase to the last node of the stage one in directed acyclic graph in docker buildKit's memory space.   
+
+Q3. You have a 3-stage Dockerfile: builder, tester, production. If nothing from the tester stage is copied into production, does the tester stage's content end up in the final image? Why or why not?
+
+No.All three stages will build three images.If you mean the production image as final image; if nothing is copied from tester stage final image does not contain content of tester stage.But both stages copy from the builder stage yes.But its not tester stage content.Its builder stage's content though the both content is same they are copied from different sources.I think this explain both why and why not.
+
+Q4. A teammate's multi-stage Python Dockerfile installs dependencies with pip install -r requirements.txt in the builder stage, but the app crashes at runtime saying "ModuleNotFoundError". What likely went wrong in the COPY --from=builder step?
+
+python does not normally compile code into single binary.It still needs python interpreter and external packages to run .py source file.What happend was COPY step did not copy those dipendencies.You can either install dependencies again in next stage or start with a full python image, create a virtual enviorenment, install dependencies inside it and  copy that entire virtual environment to your next stage.
+
+Q5. You're choosing a base image for your runtime stage. Compare alpine:3.19 vs ubuntu:22.04 for this purpose — which would you pick for a production Go binary and why? When might alpine bite you?
+
+For this purpose i would go with alpine.Because go is create statically compiled binaries.And you can have a slim image that gives you faster pushes and pulls and relatively high security.
+
+alpine is for statically compiled binaries and ubuntu for dynamic.
+alphine trade offs - 
+ubuntu use glibc as standard c library.Languages like python and nodejs use pre-compiled linux software that compiled against glibc.Since alpine use musl libc it must compile C code from scratch which takes more time to build.
+Because alpine has stripped down os you cannot use linux built in tool and flags.That will make dubugging much harder.
+
+Q6. Your multi-stage build uses FROM golang:1.21-alpine AS builder and later FROM alpine:3.19. You change app.go and rebuild. Does Docker re-run the FROM alpine:3.19 stage or use cache? What determines this?
+
+It will re run the second stage.Unless you rebuild the image seperately.assuming the rebuild is done by the same muti-stage build;
+when you change your code the layer cache break on the first stage when building the image.which means builder aliase is now pointing to different image id.So when the second stage runs it does not pull from the same files.So it will rerun the second stage.But this will not break the stage 2 base layer because it has not changed.So every layer after that will be re written.
+
+Docker buildKit computes a cryptographic hash of the actual files being copied from builder stage.Becasue code changed your code inside the builder image has changed.So it gets a new hash.So docker invalidates the cache on this COPY instruction and copy the files again.Thats called cache miss.Its what determines the use cached image or rebuild.
+
+Q7. Consider this Dockerfile:
+
+dockerfile
+
+
+FROM python:3.11-slim AS builder
+WORKDIR /app
+COPY . .
+RUN pip install --user --no-cache-dir -r requirements.txt
+FROM python:3.11-slim
+WORKDIR /app
+COPY --from=builder /root/.local /root/.local
+COPY . .
+ENV PATH=/root/.local/bin:$PATH
+CMD ["python", "app.py"]
+There's a layer caching problem in the builder stage. What is it, and how would you fix it using what you learned on Day 26?
+
+You are installing dependancies after copying file.It should be the other way around.And if dont actually run the source code inside first stage you dont need to copy your source code into it.By copying your are adding unnecassary step to the builder stage. 
+
+Q8. What's wrong with this multi-stage Dockerfile?
+
+dockerfile
+
+
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY app.go .
+RUN go build -o server app.go
+FROM scratch
+WORKDIR /app
+COPY --from=builder /app/server .
+EXPOSE 8080
+CMD ["./server"]
+It builds fine, but when you run it with a health check using curl, it fails. Why?
+
+When you build a image FROM scratch it does not have an underlying OS layer.It start from 0 bytes.Since it does not have an OS it does not have default OS services and libraries.So no shell inside the container and no shell tools like curl, ls.The app still run because it need zero third party dependencies.Because go compile statiaclly compiled binaries.But the curl fail because container does not know what curl is and has no shell to run it.
+
+Q9. Write a multi-stage Dockerfile for a Python Flask app that: uses python:3.11-slim as the builder to install dependencies from requirements.txt with --user, copies only the installed packages and app code into a fresh python:3.11-slim runtime stage, sets the PATH so the packages are found, and runs as a non-root user.
+
+/home/umesh-dulara/Desktop/devops-journey/phase2-docker/multi-stage-flask-app
+
+Q10. Your team pushes images to Docker Hub. You have two Dockerfiles: a single-stage (500MB image) and a multi-stage (50MB image) — both produce identical app behavior. Beyond image size, explain at least two concrete ways the smaller multi-stage image impacts your CI/CD pipeline and production operations differently.
+
+Less image size mean fast pulls and pushes.
+
+When you copy only the compiled or source code and installed depndencies to your production image attackers have less attack surface.Which brings you higher security.
+
+If you are using a minimal base image for your production the containers use less resources which brings you higher efficientcy.
+
+If your production is auto scalling during peak hours pulling and unpacking a small image takes less time.Which bring you minimal down time if a container crashes.
+
+
+
+
