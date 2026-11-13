@@ -1,0 +1,124 @@
+Q1. You deploy a container and docker ps shows it as Up 5 minutes — but the app inside crashed and is no longer responding to requests. Why doesn't Docker know the app is broken, and what Dockerfile instruction fixes this?
+
+Docker ps does not ther services running inside a container.It only show the running containers.So a service inside a container could crash without stopping the container as long as that service is not the PID 1(But eventhough its the PID 1 it could freeze, deadlock or enter infinite loop without exiting making the healthcheck is the only way docker know the status of the service).And if the build has no healthcheck docker does not know whether the container is healthy or not.So you can inspect processes running inside a container with docker top <container name or id>.If the container is responsive and has basic CLI tools you can exec into container and run ps to check processes.
+
+Q2. A health check runs curl -f http://localhost:8000/ || exit 1. The container has no curl installed. What happens to the container's health status, and how does this silently mislead your monitoring?
+
+The healthcheck act like if statement.It only evaluate the state of the container by the exit code of the command that ran inside healthcheck block.Any exit code other than 0 is considered as failure and docker mark the container as unhealthy.When you run curl on a container that does not have curl program it will return an error with none zero exit code. So docker will mark the container as unhealthy.But actually healthcheck fails on the exit 1 which ran after the curl failed.So it will confuse you.You have to distuingish what made the container unhealthy between whether the service is not responsive or the entire curl command failed.So you can have a perfectly healthy container but docker will still mark it as unhealthy.And since exit 1 catches any failure of the command before it the context of the error is hidden from you untill you check the logs. 
+
+Q3. Your HEALTHCHECK uses --interval=5s --retries=1. In production, the app takes 2–3 seconds to respond under load. What's the likely outcome, and what would you change?
+
+docker will mark the container as unhealthy for the first 5 seconds.after five seconds it run the healthcheck again.If the container is up and app is running by that time docker will mark it as healthy.ineterval is the time gap between health check executions.retries is the threshold of the failures to that time gap.Which means this will run healthcheck every 5 second a once.if its --interval=5s and --retries=3 it will run health check once and check the status.If its none zero code runs again.The loop continue untill it hit the retry threshold.Then mark the status of the container.After 5 second that loop continue.So i will set --start-period=5s --interval=10s and --retries=3.--start-period will give a time to conatiner to start and app to be responsive.
+
+Note - if you set a small interval and minimal number of retries to a container that differ its responsiveness based on traffic like a web container this will cause status flipping.Because your curl request might get not responsive error. 
+
+Q4. Your Dockerfile runs everything as root. The app gets compromised through a vulnerability. Compare the blast radius versus if you had used USER appuser. What can the attacker do in each case?
+
+This depends on if the root inside the containers same as the root on host.If the root of your container is mapped to a regular user the damage differ.
+
+When your app gets compromised that ran by root attacker run malicious script to escaped to the containers file system.From their on they have full administrative power over the containers file system.Which mean if there are sensitive secrets like database passwords, ssh keys they are compromised.And any volume that mounted to that container is compromised.Basically if your containers root is the root inside the host attacker can eventually get full administrative power over your host.
+
+If your app is ran by a dedicated user with minimal priviledges the attack radius drastically reduce.The attacker can only access that user's permitted files and executions only.But if your app is not a compiled binary attacker can edit your source code to do malicious acts unless user has write permissions too.Attacker can still do this with the compiled code but it would be much harder unless you backed that tools into your image.Still you can make it work with the minimal previledges. 
+
+Q5. You see this Dockerfile snippet:
+
+dockerfile
+
+
+RUN apt-get update
+RUN apt-get install -y curl
+RUN apt-get clean
+What's wrong with this pattern from a layer perspective, and how would you fix it?
+
+This will add two more unnecessary layers to the image and clean wont delete the .deb archives.It will only whiteout the files.Just run it in one step
+RUN apt-get update && apt-get install -y curl && apt-get clean
+this will create one clean layer without the .deb archives.
+
+Q6. A teammate's Dockerfile uses FROM python:latest. You're running it in production. Three months later, the app breaks after a fresh docker build — nothing in the app code changed. What happened?
+
+What changed was the python image.When python updated its image on docker hub the latest tag is moved to the new image which uses different architectural design(different library modules, underlying OS).Now your dockerfile pull that image and rebuild the image around it.But your code is written to use the previous version.So the app crashes.So never use the latest as version tag in production.use the exact version number.The code did not break because it was using the cached python image.But rebuild pulled the new image.
+
+Q7. You have this health check:
+
+dockerfile
+
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/ || exit 1
+Your app takes 25 seconds to boot up. What happens during those first 25 seconds, and which parameter saves you?
+
+Both interval and start period timers start at the same time.But docker does not execute any commands in start period and mark the container status as starting.After start time passed timer hits the 11th second.But commands not running yet.Because interval is set to 30s.Which means docker will start running command at multiplications of 30 starting from 0th second.So it waits till 30th second on the timer and run the first curl command.By that time your app is fully up and running.So curl will exit with 0.If curl hangs more than 5 seconds docker fill kill the process and increase the consecutive failure count and wait another 30 seconds.Same with the curl fails.After retry count hits 3 (3 consecutive faliures)docker mark the container as unhealthy and wait another 30 seconds.Docker will increase the failure count and keep the status as unhealthy untill the command exit with 0.Then the counter is set to 0 and container is marked as healthy.
+
+Its the interval that saves you here.But it should be the start period.Becase if you have set interval to less number like 10s docker will mark the container as unhealthy on 20th second even though the app has not even started yet.So set the start period higher interval lesser.lesser interval means faster alerts and less down time.
+
+
+Q8. You need to choose a base image for a production Python app. You have three options: python:3.11 (~900MB), python:3.11-slim (~130MB), and python:3.11-alpine (~50MB). Your app uses packages that compile C extensions. Which do you pick and why? What's the trap with the smallest one?
+
+I would choose slim build because it has debian as base OS and debian use glibc as standard c library.So it can install pre-compiled binary wheels for the packages that use c extentions.So pip doesnt have to compile packages from scratch.Its also lightweight.
+
+The alphine use alphine linux as the base OS.It use musl libc as standard c library.This will cause c dependant packages crash or require compile from the scratch during the build.To do this you have to install build tools via apk.This will make the final image is actually larger than slim build.
+
+The full python image is fully ignored because it has compilers, OS libraries and shell tools that is not necessary for your app.
+
+Q9. Find the bug — this Dockerfile is supposed to create a non-root user and run the app as that user:
+
+dockerfile
+
+
+FROM python:3.11-slim
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+WORKDIR /app
+COPY app.py .
+USER appuser
+RUN pip install flask
+CMD ["python", "app.py"]
+What breaks and why?
+
+When docker run your dockerfile it only run the commands like RUN and CMD as the USER that you have set.Other command are run as the root.So when the copy instructions is run by root that app.py file is owned by root.The appuser only has read permission.So when docker try to execute CMD command as appuser it fails due to permission denied error.You need to change the ownership of the file to the appuser or atleast give execute permission to the appuser over app.py.
+
+COPY --chown=appuser:appuser --chmod=444 app.py .
+this will change the file ownership to the appuser in appuser group and set the file's permission to only read and execute.
+
+And the order of the docker file is wrong.install dependencies first.And install them as root because the install might need write permission to paths that owned by root and only root can write.Change the user after install.
+
+
+FROM python:3.11-slim
+RUN pip install flask
+WORKDIR /app
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+COPY --chown=appuser:appuser --chmod=644 app.py .
+USER appuser
+CMD ["python", "app.py"]
+
+
+Q10. Write a Dockerfile for a Python app that follows all the best practices from today: non-root user, health check, specific base image tag, combined RUN layers for apt packages, and proper file ownership. The app runs on port 5000 and needs curl for the health check.
+
+#stage 1
+FROM python:3.11-slim As builder
+RUN useradd -m appuser
+WORKDIR /home/appuser
+USER appuser
+COPY --chown=appuser:appuser requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+#stage 2
+FROM python:3.11-slim As runtime
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*  && \
+    useradd -m appuser && \
+    mkdir -p /flask-app && \
+    chown appuser:appuser /flask-app
+WORKDIR /flask-app
+USER appuser
+COPY --from=builder --chown=appuser:appuser /home/appuser/.local /home/appuser/.local
+ENV PATH="/home/appuser/.local/bin:$PATH"
+COPY --chown=appuser:appuser . .
+EXPOSE 5000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:5000/ || exit 1
+CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "app:app"]
+
+
