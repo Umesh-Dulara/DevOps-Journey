@@ -1,13 +1,11 @@
-# Only pushing notes/, phase1-linux/, and root files
+# Pushing notes/, phase1-linux/, phase2-docker/, and root files
 
-# Ignore all phase directories except phase 1
-phase2-docker/
+# Ignore future phase directories
 phase3-cicd/
 phase4-monitoring/
 phase5-aws/
 
 # Ignore future phase trackers
-phase2_tracker.md
 phase3_tracker.md
 phase4_tracker.md
 phase5_tracker.md

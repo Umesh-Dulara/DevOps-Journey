@@ -1,6 +1,6 @@
 # 📅 DevOps Journey — Progress Calendar
 
-> **Started**: October 7, 2026 | **Phase 1**: ✅ Complete | **Phase 2**: Docker & Containers (in progress)
+> **Started**: October 7, 2026 | **Phase 1**: ✅ Complete | **Phase 2**: ✅ Complete | **Next**: Phase 3 — CI/CD 🚀
 
 ---
 
@@ -20,7 +20,10 @@
 |-----|-----|-----|-----|-----|-----|-----|
 | | | | | | | 1 |
 | **2** 🟢 | **3** 🟢 | **4** 🟢 | **5** 🟢 | 6 | **7** 🟢 | **8** 🟢 |
-| **9** 🟢 | **10** 🟢 | | | | | |
+| **9** 🟢 | **10** 🟢 | **11** 🟢 | 12 | **13** 🟢 | **14** 🟢 | 15 |
+| 16 | 17 | 18 | 19 | 20 | 21 | 22 |
+| 23 | 24 | 25 | 26 | 27 | 28 | 29 |
+| 30 | | | | | | |
 
 🟢 = Active study day
 
@@ -70,6 +73,11 @@
 | **Day 28** | Docker Networking | Nov 9 (Mon) | — | Double session |
 | **Day 29** | Docker Compose | Nov 10 (Tue) | — | |
 | **Day 30** | 🛠️ Mini-Project | Nov 10 (Tue) | 9/10 | Flask + PostgreSQL dockerized app |
+| **Day 31** | Docker Hub & Registries | Nov 11 (Wed) | — | `push&releas/push_release.sh` |
+| **Day 32** | Multi-Stage Builds | Nov 13 (Thu) | — | `multi-stage-flask-app` |
+| **Day 33** | Health Checks & Best Practices | Nov 13 (Thu) | — | Double session |
+| **Day 34** | Docker CLI Cheat Sheet | — | ⏭️ | Skipped — reference only |
+| **Day 35** | 🛠️ Mini-Project | Nov 14 (Fri) | — | `docker-final-mini-project` — Phase 2 complete 🐳✅ |
 
 ---
 
@@ -77,14 +85,14 @@
 
 | Metric | Value |
 |--------|-------|
-| **Calendar days elapsed** | 35 (Oct 7 → Nov 10) |
-| **Curriculum days completed** | 30 |
+| **Calendar days elapsed** | 39 (Oct 7 → Nov 14) |
+| **Curriculum days completed** | 34 (Day 34 skipped — reference only) |
 | **Phase 1 complete** | ✅ (21/21) |
-| **Phase 2 progress** | 9 / 14 (Week 4 done) |
-| **Active study days** | 21 out of 35 |
-| **Consistency** | 60% (21/35 days active) |
-| **Avg days completed per study day** | 1.43 |
-| **Double sessions** | 8 times (you regularly knock out 2 days in one sitting) |
+| **Phase 2 complete** | ✅ (13/14 — Day 34 skipped by design) |
+| **Active study days** | 24 out of 39 |
+| **Consistency** | 62% (24/39 days active) |
+| **Avg days completed per study day** | 1.42 |
+| **Double sessions** | 9 times (Days 32+33 on Nov 13 is the latest) |
 | **Study pattern** | Night owl 🦉 — peaks at 9 PM–2 AM |
 
 ---
@@ -93,10 +101,10 @@
 
 ```
 Phase 1:  ████████████████████████████ 21/21 ✅ COMPLETE
-Phase 2:  █████████░░░░░             9/14 (Week 4 done)
-              ↑ You are HERE (64% of Phase 2)
+Phase 2:  ████████████████████████████ 14/14 ✅ COMPLETE
+              Phase 2 finished Nov 14 — right on schedule!
 
-Phase 2 projected finish: ~Nov 15
+Next up: Phase 3 — CI/CD Pipelines 🚀
 ```
 
 ---
@@ -112,13 +120,13 @@ Phase 2 projected finish: ~Nov 15
 - [x] 🟢 Week 3 complete (~Nov 4)
 - [x] 🟢 Phase 1 complete → Docker begins 🐳 (Nov 5)
 - [x] 🟢 Week 4 complete — first Docker mini-project (Nov 10)
-- [ ] 🔵 Week 5 complete
-- [ ] 🔵 Phase 2 complete → CI/CD begins 🚀
+- [x] 🟢 Week 5 complete — production-ready Docker image (Nov 14)
+- [x] 🟢 Phase 2 complete → CI/CD begins 🚀 (Nov 14)
 
 ---
 
 > [!TIP]
-> Your strongest pattern: **double sessions** — you've done 2 curriculum days in a single sitting 8 times. That's where you get your speed advantage.
+> Your strongest pattern: **double sessions** — you've done 2 curriculum days in a single sitting 9 times. That's where you get your speed advantage.
 
 > [!NOTE]
-> Updated: November 10, 2026 (19:03 IST)
+> Updated: November 15, 2026 (00:53 IST)

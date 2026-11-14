@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS visitor_count (
+    id SERIAL PRIMARY KEY,
+    count INTEGER NOT NULL DEFAULT 0
+);
+
+INSERT INTO visitor_count (id, count)
+VALUES (1, 0)
+ON CONFLICT (id) DO NOTHING;

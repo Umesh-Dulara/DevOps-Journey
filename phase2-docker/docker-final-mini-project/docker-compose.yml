@@ -1,0 +1,45 @@
+services:
+  database:
+     image: postgres:16-alpine
+     container_name: ${POSTGRES_DB}
+     restart: always
+     environment:
+          POSTGRES_DB: ${POSTGRES_DB}
+          POSTGRES_USER: ${POSTGRES_USER}
+          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+     volumes:
+          - flask-database:/var/lib/postgresql/data
+          - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+     networks:
+          - flask-net
+     healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+          interval: 10s
+          timeout: 5s
+          start_period: 15s
+          retries: 3
+  web:
+     build: .
+     image: ${USER_NAME}/flask-app:${APP_VERSION}
+     container_name: flask-app
+     restart: always
+     ports:
+       - 5000:5000
+     networks: 
+       - flask-net 
+     environment:
+       DB_HOST: ${DB_HOST}
+       DB_NAME: ${POSTGRES_DB}
+       DB_USER: ${POSTGRES_USER}
+       DB_PORT: ${DB_PORT}
+       DB_PASS: ${POSTGRES_PASSWORD}
+     depends_on:
+       database:
+          condition: service_healthy
+
+volumes:
+     flask-database:
+              driver: local
+networks:
+     flask-net:
+         driver: bridge 

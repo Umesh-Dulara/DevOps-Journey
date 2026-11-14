@@ -1,0 +1,47 @@
+version: "3.0"
+
+services:
+   db:
+    image: postgres:16-alpine
+    container_name: ${POSTGRES_DB}
+    restart: always
+    environment:
+       POSTGRES_DB: ${POSTGRES_DB}
+       POSTGRES_USER: ${POSTGRES_USER}
+       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: 
+       - web-data:/var/lib/postgresql/data
+       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+       - web-net 
+    healthcheck:
+       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+       interval: 5s
+       timeout: 5s
+       retries: 5
+   web:
+     build: .
+     container_name: flask-web
+     restart: always
+     command: ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "app:app"]
+     ports:
+       - 5000:5000
+     networks:
+       - web-net
+     environment:
+       DB_HOST: ${DB_HOST}
+       DB_NAME: ${POSTGRES_DB}
+       DB_USER: ${POSTGRES_USER}
+       DB_PORT: ${DB_PORT}
+       DB_PASS: ${POSTGRES_PASSWORD}
+     depends_on:
+       db:
+        condition: service_healthy
+
+volumes:
+    web-data:
+      driver: local
+
+networks:
+    web-net:
+      driver: bridge
