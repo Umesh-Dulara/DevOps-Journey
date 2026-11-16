@@ -1,0 +1,77 @@
+Q1. Two developers work on separate features for a week each without merging. What problem gets worse the longer they wait — and how does trunk-based development avoid it?
+
+The problem is intergration hell and branch drift.When two devolopers work in two branches their branch move further away from each others' common ancestor commit.The longer they wait further they drift from each other.Dev A might change a function in original code base and Dev B's code has no evidence of that change.So when they try to merge the features it will cause severe merge conflicts and sementic conflicts.
+
+Trunk based development eliminates long-lived feature branches by changing how and when code is intergrated.Developers either commit directly to the trunk (main) or use short lived branches that lives less than a day.Since changes are tiny and merged constantly confilcts are rare and easy to fix.To merge incomplete features safely without breaking the app for users team wraps unfinished code in conditional flags.This lets developers integrate code into main branch continuously while keeping the feature hidden until its ready.Trunk based development use continuous integration pipe lines.Every small merge triggers automated builds and tests immediatly.If a change breaks something team spots and fixes it within minutes rather than discovering pile of broken code at the end of the week.  
+
+Q2. In GitFlow, code moves from feature/* → develop → release/* → main. What does that release/* branch exist for, and why doesn't a team deploying a web app every day need one?
+
+Release branch exist for to test and fix any bugs that was created in latest feature merge.It act like a checkpoint between develop branch and main branch.
+
+Gitflow breaks down in continuous delivery because its multi branch architecture traps code in long staging cycles, delaying integration and feedback.In gitflow code is isolated from main branch for days or weeks before it ever touches the main branch.Juggling mutiple branches  forces team to spend time on manual branch merging rather than shipping and developing.Thats why web app does not need one.What it actually need is a CI or trunk based development.
+
+Q3. A team using GitHub Flow merges every PR directly into main and deploys from main. What must be true about their CI pipeline for this to be safe?
+
+Before a PR can be merged CI pipeline must automatically execute and pass several layers of verification.
+-Fast reliable automated tests. - Unit tests verify individual functions in seconds while integration and end to end tests verify that database, APIs and user flows work together.These tests must be deterministic.
+-Build and compilation checks - The pipe line confirms the application actually compiles, bundles and build its production artifacts withot errors.
+-Code quality and security scans - Automated linters check code formatting, static analysis tools catch common bugs and security scanners ensure no hardcoded secrets or vulnerable dependencies are introduced
+
+Even with the great tests Git repository settings must enforce the rules so broken code cannort slip through
+-Branch protection rules - Direct pushes to main are blocked, requiring all changes to go through a PR with passing CI status checks.
+-Up to date branch requirements - The PR must be rebased or synced with the latest main before merging.This ensure that CI tests ran against the exact combination of code that will exist after the merge
+-Fats peer review - A teammate quicklu reviews the PR for logic and readablity, keeping PRs small so review happen fast
+
+Because automated test cannot catch 100% of real world edge cases, merging directly to main relies on safe deployment practices.
+-Feature flags - Incomplete features are wrapped in conditional toggles, allowing code to be merged and deployed safely while remaining invisible to users until activated
+-Automated rollbacks and canary releases - Deployments roll out gradually to a small percentage of users first.If error rates spike in monitoring tools, the system automatically reverts main or roll back the deployment within seconds.
+
+Q4. Your team ships a mobile app with version 2.3.1 in the App Store. A customer reports a critical bug in 2.3.0. With GitFlow, how do you fix it without shipping unfinished features from develop? With trunk-based, how would you handle the same situation?
+
+In this gitflow 2.3.1 is already the latest version.So main in gitflow at 2.3.1. To fix 2.3.0 without pulling 2.3.1 develop changes both workflows must anchor to the 2.3.0 release tag.
+
+gitflow
+
+Create a hotfix branch from the 2.3.0 tag: git checkout -b hotfix/2.3.0-fix v2.3.0.So you start from the exact snapshot of version 2.3.0 without any 2.3.1 or develop code.From there you can fix the bug run tests and tag the commit as v2.3.0.1 to ship the patched version to the appstore.Then pull 2.3.1 into hotfix branch resolve any conflicts and merge to the main branch 2.3.1.1 and develop.
+
+TBD
+
+In trunk based development you never write fixes directly on old release branches first, because fixes could get forgotten and never make it into future versions.You write the bug fix on main via a short lived PR, letting CI pipeline to verify that all tests pass.Then checkout a release branch from old version tag.Then copy only the fix commit from man to that release branch using git cherry-pick <commit-hash>.Tag it as v2.3.0.1 and ship it leaving all newer main commits behind.
+
+Q5. After merging release/1.0 into main, GitFlow requires a "back-merge" into develop. What breaks if you skip that step?
+
+A back-merge is the process of merging a bug fix or update from a downstream branch(like main or an active release branch) back into an upstream branch(like develop)It ensure that any patch, update or stability fix applied to main is immediately carried over into ongoing develop branch so its synced with the downstream branch.If you skip this step the older patches, updates get overwritten.Like if you hotfix a bug in main and skip back-merge, that bug will reappear in future releases.
+
+Q6. A colleague commits with messages like "updated stuff", "fix", "asdfg". You're setting up a CI/CD pipeline that auto-generates changelogs from commit history. Why do these messages sabotage that, and what convention would you enforce?
+
+Automated release tools (such as sementic-release, standard-version or github's release note generator) parse raw git commit logs programmatically.Unstructured messages break this process in three ways.
+-Inability to categorize changes - changelog generators look for specific prefixes to sort updates into sections like features, bug fixes or breaking changes.A commit message like this has no recognizable type, causing the tool to either skip the commit completely or dump noise into the changelog
+-Broken semantic versioning - automated pipelines determine the next release version from commit types (feat - minor, fix - patch, BREAKING CHANGE - major) Without tructured types the pipeline cannot tell whether a commit is a simple typo fix or a breaking API change.
+-Useless release note for users and QA - Even if a tool blindly copies commit subjects into changelog, messages like this give users, support staff and QA zero context about what actually changed.
+
+You can enforce Conventional commits to avoid this
+
+Conventional commits standard requires every commit message or squashed PR title to follow a strict machine-readable format.To guarantee comliance across the team without relying on memory you can use local git hooks or CI pipeline and squash merge rules.Hooks like Husky and commitlint reject improperly formatted commit messages right on the developers machine before the commit is created(Not ideal because device users can bypass local hooks using --no-verify).You can run commitlint in your CI workflow on every PR and enforce squash and merge on main.So only clean validated PR titles enter the release history.
+
+Q7. Find the bug — a team says they're doing "trunk-based development":
+
+main ← develop ← feature/auth (open for 2 weeks)
+                ← feature/payments (open for 3 weeks)
+What's actually wrong with their workflow?
+
+TBD does not use a seperate develop branch.Thats gitflow.The team must implement feature on short lived branches.This workflow has 2 feature branches that been sitting there for weeks without merging.
+
+Q8. In trunk-based development, half-finished features still get merged to main daily. How do you deploy main to production without exposing unfinished features to users?
+
+You use feature flags that wraps your unfinished code in a conditional if/else check that reads a boolean configuration value at runtime.This allows you to merge incomplete features into main branch and deploy it to production everyday while keeping the new behaviour completely invisible to end user until you change the boolean value.
+
+Q9. Write a shell script that takes a Git repo path as an argument, lists all branches, and warns if any branch hasn't been merged into main for more than 7 days (hint: use git log dates and date arithmetic). This is the kind of drift detector a trunk-based team would run in CI.
+
+/home/umesh-dulara/Desktop/devops-journey/phase3-cicd/branch_check/branch_check.sh
+
+Q10. Your company runs 15 microservices, each in its own repo, deployed independently multiple times a day. A colleague proposes adopting GitFlow across all repos. Argue against it — what specific overhead does GitFlow add that conflicts with high-frequency continuous deployment?
+
+Adopting gitflow in a 15 microservice architecture deployed multiple times a day creates severe branching bottlenecks, multiple CI/CD maintainance across 15 repositories and breaks the core premise of independent continuous deployment.Gitflow was built for scheduled, monolithic software releases.You would have to configure and maintain main, develop, release and hotfix rules, environment mappings and versioning scripts across 15 seperate repos.Every simple change triggers redundant CI builds as code moves from feature>develop>release>main.Gitflow forces devs to group commits into release branches before merging into main.When team deploys a microservice mutiple times a day creating, testing and closing release branches every few hours turns deployments manual rather than an automation.
+
+
+
